@@ -11,25 +11,56 @@ const indexLabel = document.getElementById('indexLabel') as HTMLElement;
 const productCountLabel = document.getElementById('productCount') as HTMLElement;
 
 const DEFAULT_PRODUCTS = [
-  'Produkt 1',
-  'Produkt 2',
-  'Produkt 3',
-  'Produkt 4',
-  'Produkt 5',
-  'Produkt 6',
-  'Produkt 7',
-  'Produkt 8',
+  `<figure class="product-card">
+    <img src="/products/CzarPrl.webp" alt="Czar PRL" />
+    <figcaption>
+      <h2>Czar PRL</h2>
+      <p>Zapieckanka z pieczarkami, serem i szczypiorkiem.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Gimbusa.webp" alt="Gimbusa" />
+    <figcaption>
+      <h2>Gimbusa</h2>
+      <p>Młodzieżowa klasyka z keczupem i serem.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Zmiennika.webp" alt="Zmiennika" />
+    <figcaption>
+      <h2>Zmiennika</h2>
+      <p>Zaskakujące połączenie sezonowych dodatków.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/CzarPrl.webp" alt="Czar PRL" />
+    <figcaption>
+      <h2>Czar PRL XL</h2>
+      <p>Większa porcja klasyka – idealna na dzielenie.</p>
+    </figcaption>
+  </figure>`,
 ];
 
 let timer: number | null = null;
 let startIndex = 0;
 
 function readProducts(): string[] {
-  const lines = productsTextarea.value
+  const raw = productsTextarea.value;
+  const blocks = raw
+    .split(/\n\s*\n/g)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  if (blocks.length > 1) {
+    return blocks;
+  }
+
+  const lines = raw
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
-  return lines.length ? lines : [...DEFAULT_PRODUCTS];
+
+  return blocks.length ? blocks : lines.length ? lines : [...DEFAULT_PRODUCTS];
 }
 
 function composePayload(type: 'init' | 'tick' | 'stop', intervalMs: number, products: string[]) {
@@ -114,7 +145,7 @@ productsTextarea.addEventListener('change', () => {
 });
 
 if (!productsTextarea.value.trim()) {
-  productsTextarea.value = DEFAULT_PRODUCTS.join('\n');
+  productsTextarea.value = DEFAULT_PRODUCTS.join('\n\n');
   productCountLabel.textContent = DEFAULT_PRODUCTS.length.toString();
 }
 

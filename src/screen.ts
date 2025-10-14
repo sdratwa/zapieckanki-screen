@@ -13,8 +13,20 @@ const channel = new BroadcastChannel(channelName);
 
 let products: string[] = [];
 let startIndex = 0;
+let pendingStartIndex: number | null = null;
+let isAnimating = false;
 
 const TRANSITION_MS = 700;
+
+function commitPendingStartIndex() {
+  if (pendingStartIndex === null) return;
+  if (products.length > 0) {
+    startIndex = normalizeIndex(pendingStartIndex, products.length);
+  } else {
+    startIndex = 0;
+  }
+  pendingStartIndex = null;
+}
 
 function setBadge() {
   badgeEl.textContent = `Screen #${screenPos}`;
@@ -24,14 +36,20 @@ function setStatus(text: string) {
   statusEl.textContent = text;
 }
 
-function productIndex(offset: number): number {
-  const length = products.length;
+function normalizeIndex(index: number, length: number): number {
   if (length === 0) return 0;
-  const index = (startIndex + screenPos + offset) % length;
-  return index < 0 ? index + length : index;
+  const mod = index % length;
+  return mod < 0 ? mod + length : mod;
 }
 
-function renderSlides() {
+function productIndex(offset: number, baseStartIndex: number = startIndex): number {
+  const length = products.length;
+  if (length === 0) return 0;
+  const index = baseStartIndex + screenPos + offset;
+  return normalizeIndex(index, length);
+}
+
+function renderSlides(baseStartIndex: number = startIndex) {
   if (products.length === 0) {
     prevEl.innerHTML = '';
     currEl.innerHTML = '<em>Brak produktów</em>';
@@ -40,11 +58,12 @@ function renderSlides() {
     return;
   }
 
-  prevEl.innerHTML = products[productIndex(-1)] ?? '';
-  currEl.innerHTML = products[productIndex(0)] ?? '';
-  nextEl.innerHTML = products[productIndex(1)] ?? '';
+  prevEl.innerHTML = products[productIndex(-1, baseStartIndex)] ?? '';
+  currEl.innerHTML = products[productIndex(0, baseStartIndex)] ?? '';
+  nextEl.innerHTML = products[productIndex(1, baseStartIndex)] ?? '';
 
-  setStatus(`Produkt ${(productIndex(0) + 1)} z ${products.length}`);
+  const currentIndex = productIndex(0, baseStartIndex);
+  setStatus(`Produkt ${currentIndex + 1} z ${products.length}`);
 }
 
 function snapToCenter() {
@@ -55,11 +74,15 @@ function snapToCenter() {
 }
 
 function animateLeft() {
+  if (isAnimating) return;
+  isAnimating = true;
   belt.style.transform = 'translateX(-200vw)';
   const onDone = () => {
     belt.removeEventListener('transitionend', onDone);
-    renderSlides();
+    commitPendingStartIndex();
+    renderSlides(startIndex);
     snapToCenter();
+    isAnimating = false;
   };
   belt.addEventListener('transitionend', onDone);
 }
@@ -69,21 +92,29 @@ channel.addEventListener('message', (event) => {
   if (!message) return;
 
   products = message.products ?? [];
-  startIndex = message.startIndex ?? 0;
+  const incomingStartIndex = message.startIndex ?? 0;
 
   switch (message.type) {
     case 'init':
+      startIndex = products.length > 0 ? normalizeIndex(incomingStartIndex, products.length) : 0;
+      pendingStartIndex = null;
       renderSlides();
       snapToCenter();
       setStatus('Zsynchronizowano');
+      isAnimating = false;
       break;
     case 'tick':
+      renderSlides(startIndex);
+      pendingStartIndex = normalizeIndex(incomingStartIndex, products.length);
       requestAnimationFrame(() => {
-        renderSlides();
-        animateLeft();
+        if (!isAnimating) {
+          animateLeft();
+        }
       });
       break;
     case 'stop':
+      commitPendingStartIndex();
+      renderSlides(startIndex);
       setStatus('Zatrzymano');
       break;
     default:
