@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kontroler ekranów</title>
+    <link rel="stylesheet" href="/src/styles/controller.css" />
+  </head>
+  <body>
+    <main class="wrapper">
+      <header class="header">
+        <h1>Kontroler rotacji produktów</h1>
+        <p class="subtitle">
+          Otwórz <code>screen.html?pos=0</code>, <code>screen.html?pos=1</code> itd. na poszczególnych ekranach i kliknij start.
+        </p>
+      </header>
+
+      <section class="panel">
+        <div class="field">
+          <label for="interval">Interwał (sekundy)</label>
+          <input id="interval" type="number" min="1" step="1" value="10" />
+        </div>
+
+        <div class="field">
+          <label for="products">Lista produktów (jeden wpis na linię)</label>
+          <textarea id="products" rows="10" spellcheck="false"></textarea>
+          <div class="hint">Możesz wklejać HTML (np. obrazki, ceny). Każdy ekran wyświetli treść jako <code>innerHTML</code>.</div>
+        </div>
+
+        <div class="buttons">
+          <button id="startBtn" type="button">Start</button>
+          <button id="stopBtn" type="button">Stop</button>
+          <button id="resetBtn" type="button">Resetuj indeks</button>
+        </div>
+
+        <dl class="status" aria-live="polite">
+          <div>
+            <dt>Stan</dt>
+            <dd id="stateLabel">Oczekiwanie…</dd>
+          </div>
+          <div>
+            <dt>Aktywny indeks startowy</dt>
+            <dd id="indexLabel">0</dd>
+          </div>
+          <div>
+            <dt>Liczba produktów</dt>
+            <dd id="productCount">0</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="tips">
+        <h2>Instrukcja</h2>
+        <ul>
+          <li>Uruchom tyle okien z <code>screen.html</code>, ile masz ekranów. Każdemu nadaj parametr <code>?pos=&lt;n&gt;</code>.</li>
+          <li>Wprowadź listę produktów, naciśnij <strong>Start</strong>. Wszystkie ekrany zsynchronizują się automatycznie.</li>
+          <li>Zmiana interwału lub listy produktów podczas pracy restartuje cykl bez przerywania animacji.</li>
+          <li>Przycisk <strong>Stop</strong> zatrzymuje timer, ale utrzymuje aktualną zawartość na ekranach.</li>
+        </ul>
+      </section>
+    </main>
+
+    <script type="module" src="/src/controller.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ekran produktu</title>
+    <link rel="stylesheet" href="/src/styles/screen.css" />
+  </head>
+  <body>
+    <div class="stage">
+      <div class="belt" id="belt" aria-live="polite">
+        <article class="slide" id="prev"></article>
+        <article class="slide" id="curr"></article>
+        <article class="slide" id="next"></article>
+      </div>
+      <div class="overlay">
+        <div class="badge" id="badge"></div>
+        <div class="status" id="status"></div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/screen.ts"></script>
+  </body>
+</html>

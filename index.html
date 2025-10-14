@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zapieckanki Screen</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.2), transparent 55%),
+          radial-gradient(circle at bottom left, rgba(129, 140, 248, 0.18), transparent 60%),
+          #020617;
+        color: #e2e8f0;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+      }
+      main {
+        padding: 40px;
+        max-width: 640px;
+        text-align: center;
+        background: rgba(15, 23, 42, 0.75);
+        border-radius: 24px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        backdrop-filter: blur(28px);
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: clamp(32px, 5vw, 48px);
+      }
+      p {
+        margin: 0 0 24px;
+        line-height: 1.7;
+        color: #cbd5f5;
+      }
+      a {
+        display: inline-block;
+        margin: 10px;
+        padding: 14px 20px;
+        border-radius: 999px;
+        font-weight: 600;
+        text-decoration: none;
+        background: rgba(56, 189, 248, 0.85);
+        color: #020617;
+        transition: transform 150ms ease, box-shadow 150ms ease;
+      }
+      a:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 24px rgba(56, 189, 248, 0.22);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Zapieckanki Screen</h1>
+      <p>Witaj! To mała aplikacja do synchronizowanej prezentacji produktów na wielu ekranach. Zacznij od kontrolera lub od razu otwórz widok ekranu.</p>
+      <p>
+        <a href="/controller.html">Otwórz kontroler</a>
+        <a href="/public/screen.html?pos=0">Podgląd ekranu #0</a>
+      </p>
+      <p style="font-size:14px;color:#94a3b8">Skopiuj kartę ekranu i zmień parametr <code>?pos=</code>, aby dodać kolejne wyświetlacze.</p>
+    </main>
+  </body>
+</html>
