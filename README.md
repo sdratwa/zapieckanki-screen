@@ -22,6 +22,16 @@ npm run build
 npm run preview
 ```
 
+## Pusher Setup
+
+1. Utwórz aplikację w [Pusher Channels](https://dashboard.pusher.com/).
+2. Skopiuj `App ID`, `Key`, `Secret`, `Cluster` do pliku `.env` na podstawie `.env.example`.
+3. Uruchom serwer relay:
+   ```bash
+   npm run server
+   ```
+4. W kontrolerze i ekranach ustaw `PUSHER_KEY`, `PUSHER_CLUSTER`, `PUSHER_ENDPOINT` (domyślnie `http://localhost:3000/trigger`).
+
 ## Features
 
 - BroadcastChannel-based sync for same-device screens

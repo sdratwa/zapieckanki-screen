@@ -9,8 +9,11 @@ const badgeEl = document.getElementById('badge') as HTMLElement;
 const statusEl = document.getElementById('status') as HTMLElement;
 const stageEl = document.querySelector('.stage') as HTMLElement;
 
+const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY as string | undefined;
+const PUSHER_CLUSTER = import.meta.env.VITE_PUSHER_CLUSTER as string | undefined;
+const useBroadcastFallback = !PUSHER_KEY;
 const channelName = 'multiwall::rotation';
-const channel = new BroadcastChannel(channelName);
+const channel = useBroadcastFallback ? new BroadcastChannel(channelName) : null;
 
 let products: string[] = [];
 let startIndex = 0;
@@ -91,10 +94,7 @@ function animateLeft() {
   belt.addEventListener('transitionend', onDone);
 }
 
-channel.addEventListener('message', (event) => {
-  const message = event.data as RotationMessage;
-  if (!message) return;
-
+function handleMessage(message: RotationMessage) {
   products = message.products ?? [];
   const incomingStartIndex = message.startIndex ?? 0;
 
@@ -127,12 +127,34 @@ channel.addEventListener('message', (event) => {
     default:
       break;
   }
-});
+}
+
+async function setupRealtime() {
+  if (!useBroadcastFallback) {
+    const { default: Pusher } = await import('pusher-js');
+    const pusher = new Pusher(PUSHER_KEY!, {
+      cluster: PUSHER_CLUSTER!,
+      forceTLS: true,
+    });
+    const subscription = pusher.subscribe('rotation-channel');
+    subscription.bind('rotation-event', (data: RotationEnvelope) => {
+      handleMessage(data.payload);
+    });
+  }
+
+  if (channel) {
+    channel.addEventListener('message', (event) => {
+      const message = event.data as RotationMessage;
+      handleMessage(message);
+    });
+  }
+}
 
 window.addEventListener('focus', () => setBadge());
 setBadge();
 snapToCenter();
 setStatus('Oczekiwanie na kontroler…');
+void setupRealtime();
 
 interface RotationMessage {
   type: 'init' | 'tick' | 'stop';
@@ -144,3 +166,8 @@ interface RotationMessage {
 }
 
 type LayoutMode = 'card' | 'image';
+
+interface RotationEnvelope {
+  type: 'init' | 'tick' | 'stop';
+  payload: RotationMessage;
+}

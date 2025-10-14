@@ -10,7 +10,7 @@
     // See also https://aka.ms/tsconfig/module
     "module": "esnext",
     "target": "es2020",
-    "types": [],
+    "types": ["vite/client"],
     "lib": ["dom", "es2020"],
     // For nodejs:
     // "lib": ["esnext"],

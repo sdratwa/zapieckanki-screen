@@ -1,6 +1,3 @@
-const channelName = 'multiwall::rotation';
-const channel = new BroadcastChannel(channelName);
-
 const intervalInput = document.getElementById('interval') as HTMLInputElement;
 const productsTextarea = document.getElementById('products') as HTMLTextAreaElement;
 const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
@@ -13,9 +10,17 @@ const layoutInputs = Array.from(
   document.querySelectorAll<HTMLInputElement>('input[name="layoutMode"]'),
 );
 
+const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY as string | undefined;
+const PUSHER_ENDPOINT = (import.meta.env.VITE_PUSHER_ENDPOINT as string | undefined) ?? '/trigger';
+const useBroadcastFallback = !PUSHER_KEY;
+const broadcastChannel = useBroadcastFallback
+  ? new BroadcastChannel('multiwall::rotation')
+  : null;
+
 type LayoutMode = 'card' | 'image';
 
-let layoutMode: LayoutMode = 'card';
+let layoutMode: LayoutMode =
+  layoutInputs.find((input) => input.checked)?.value === 'image' ? 'image' : 'card';
 
 const DEFAULT_CARD_PRODUCTS = [
   `<figure class="product-card">
@@ -58,6 +63,23 @@ const DEFAULT_IMAGE_PRODUCTS = [
 let timer: number | null = null;
 let startIndex = 0;
 
+async function sendToPusher(message: OutgoingMessage) {
+  try {
+    const response = await fetch(PUSHER_ENDPOINT!, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Relay responded with ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Failed to send Pusher message', error);
+    setStateLabel('Błąd wysyłki do serwera');
+  }
+}
+
 function readProducts(): string[] {
   const raw = productsTextarea.value;
   const normalized = raw.replace(/\r\n/g, '\n');
@@ -99,7 +121,11 @@ function broadcast(type: 'init' | 'tick' | 'stop') {
   const intervalMs = getIntervalMs();
   const products = readProducts();
   const payload = composePayload(type, intervalMs, products);
-  channel.postMessage(payload);
+  if (useBroadcastFallback && broadcastChannel) {
+    broadcastChannel.postMessage(payload);
+  } else {
+    void sendToPusher({ type, payload });
+  }
   productCountLabel.textContent = products.length.toString();
   indexLabel.textContent = startIndex.toString();
 }
@@ -169,7 +195,7 @@ productsTextarea.addEventListener('change', () => {
 layoutInputs.forEach((input) => {
   input.addEventListener('change', () => {
     if (!input.checked) return;
-    layoutMode = input.value as LayoutMode;
+    layoutMode = input.value === 'image' ? 'image' : 'card';
     const defaults = layoutMode === 'image' ? DEFAULT_IMAGE_PRODUCTS : DEFAULT_CARD_PRODUCTS;
     if (!productsTextarea.value.trim()) {
       productsTextarea.value = defaults.join('\n\n');
@@ -198,4 +224,14 @@ interface RotationMessage {
   intervalMs: number;
   products: string[];
   layoutMode: LayoutMode;
+}
+
+interface OutgoingMessage {
+  type: 'init' | 'tick' | 'stop';
+  payload: RotationMessage;
+}
+
+interface OutgoingMessage {
+  type: 'init' | 'tick' | 'stop';
+  payload: RotationMessage;
 }
