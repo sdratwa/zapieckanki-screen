@@ -7,6 +7,7 @@ const currEl = document.getElementById('curr') as HTMLElement;
 const nextEl = document.getElementById('next') as HTMLElement;
 const badgeEl = document.getElementById('badge') as HTMLElement;
 const statusEl = document.getElementById('status') as HTMLElement;
+const stageEl = document.querySelector('.stage') as HTMLElement;
 
 const channelName = 'multiwall::rotation';
 const channel = new BroadcastChannel(channelName);
@@ -15,6 +16,7 @@ let products: string[] = [];
 let startIndex = 0;
 let pendingStartIndex: number | null = null;
 let isAnimating = false;
+let layoutMode: LayoutMode = 'card';
 
 const TRANSITION_MS = 700;
 
@@ -55,6 +57,7 @@ function renderSlides(baseStartIndex: number = startIndex) {
     currEl.innerHTML = '<em>Brak produktów</em>';
     nextEl.innerHTML = '';
     setStatus('Oczekiwanie na kontroler…');
+    stageEl.classList.toggle('stage--image', layoutMode === 'image');
     return;
   }
 
@@ -64,6 +67,7 @@ function renderSlides(baseStartIndex: number = startIndex) {
 
   const currentIndex = productIndex(0, baseStartIndex);
   setStatus(`Produkt ${currentIndex + 1} z ${products.length}`);
+  stageEl.classList.toggle('stage--image', layoutMode === 'image');
 }
 
 function snapToCenter() {
@@ -98,12 +102,14 @@ channel.addEventListener('message', (event) => {
     case 'init':
       startIndex = products.length > 0 ? normalizeIndex(incomingStartIndex, products.length) : 0;
       pendingStartIndex = null;
+      layoutMode = message.layoutMode ?? 'card';
       renderSlides();
       snapToCenter();
       setStatus('Zsynchronizowano');
       isAnimating = false;
       break;
     case 'tick':
+      layoutMode = message.layoutMode ?? layoutMode;
       renderSlides(startIndex);
       pendingStartIndex = normalizeIndex(incomingStartIndex, products.length);
       requestAnimationFrame(() => {
@@ -114,6 +120,7 @@ channel.addEventListener('message', (event) => {
       break;
     case 'stop':
       commitPendingStartIndex();
+      layoutMode = message.layoutMode ?? layoutMode;
       renderSlides(startIndex);
       setStatus('Zatrzymano');
       break;
@@ -133,4 +140,7 @@ interface RotationMessage {
   startIndex: number;
   intervalMs: number;
   products: string[];
+  layoutMode?: LayoutMode;
 }
+
+type LayoutMode = 'card' | 'image';

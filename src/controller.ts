@@ -9,8 +9,15 @@ const resetBtn = document.getElementById('resetBtn') as HTMLButtonElement;
 const stateLabel = document.getElementById('stateLabel') as HTMLElement;
 const indexLabel = document.getElementById('indexLabel') as HTMLElement;
 const productCountLabel = document.getElementById('productCount') as HTMLElement;
+const layoutInputs = Array.from(
+  document.querySelectorAll<HTMLInputElement>('input[name="layoutMode"]'),
+);
 
-const DEFAULT_PRODUCTS = [
+type LayoutMode = 'card' | 'image';
+
+let layoutMode: LayoutMode = 'card';
+
+const DEFAULT_CARD_PRODUCTS = [
   `<figure class="product-card">
     <img src="/products/CzarPrl.webp" alt="Czar PRL" />
     <figcaption>
@@ -41,12 +48,20 @@ const DEFAULT_PRODUCTS = [
   </figure>`,
 ];
 
+const DEFAULT_IMAGE_PRODUCTS = [
+  `<img class="slide-asset" src="/products/CzarPrl.webp" alt="Czar PRL" />`,
+  `<img class="slide-asset" src="/products/Gimbusa.webp" alt="Gimbusa" />`,
+  `<img class="slide-asset" src="/products/Zmiennika.webp" alt="Zmiennika" />`,
+  `<img class="slide-asset" src="/products/CzarPrl.webp" alt="Czar PRL XL" />`,
+];
+
 let timer: number | null = null;
 let startIndex = 0;
 
 function readProducts(): string[] {
   const raw = productsTextarea.value;
-  const blocks = raw
+  const normalized = raw.replace(/\r\n/g, '\n');
+  const blocks = normalized
     .split(/\n\s*\n/g)
     .map((block) => block.trim())
     .filter(Boolean);
@@ -55,21 +70,28 @@ function readProducts(): string[] {
     return blocks;
   }
 
-  const lines = raw
+  const lines = normalized
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
 
-  return blocks.length ? blocks : lines.length ? lines : [...DEFAULT_PRODUCTS];
+  const defaults = layoutMode === 'image' ? DEFAULT_IMAGE_PRODUCTS : DEFAULT_CARD_PRODUCTS;
+
+  return blocks.length ? blocks : lines.length ? lines : [...defaults];
 }
 
-function composePayload(type: 'init' | 'tick' | 'stop', intervalMs: number, products: string[]) {
+function composePayload(
+  type: 'init' | 'tick' | 'stop',
+  intervalMs: number,
+  products: string[],
+) {
   return {
     type,
     ts: performance.now(),
     startIndex,
     intervalMs,
     products,
+    layoutMode,
   } satisfies RotationMessage;
 }
 
@@ -144,9 +166,26 @@ productsTextarea.addEventListener('change', () => {
   }
 });
 
+layoutInputs.forEach((input) => {
+  input.addEventListener('change', () => {
+    if (!input.checked) return;
+    layoutMode = input.value as LayoutMode;
+    const defaults = layoutMode === 'image' ? DEFAULT_IMAGE_PRODUCTS : DEFAULT_CARD_PRODUCTS;
+    if (!productsTextarea.value.trim()) {
+      productsTextarea.value = defaults.join('\n\n');
+    }
+    productCountLabel.textContent = readProducts().length.toString();
+    if (timer !== null) {
+      startIndex = 0;
+      broadcast('init');
+    }
+  });
+});
+
 if (!productsTextarea.value.trim()) {
-  productsTextarea.value = DEFAULT_PRODUCTS.join('\n\n');
-  productCountLabel.textContent = DEFAULT_PRODUCTS.length.toString();
+  const defaults = layoutMode === 'image' ? DEFAULT_IMAGE_PRODUCTS : DEFAULT_CARD_PRODUCTS;
+  productsTextarea.value = defaults.join('\n\n');
+  productCountLabel.textContent = defaults.length.toString();
 }
 
 setStateLabel('Oczekiwanie na start');
@@ -158,4 +197,5 @@ interface RotationMessage {
   startIndex: number;
   intervalMs: number;
   products: string[];
+  layoutMode: LayoutMode;
 }

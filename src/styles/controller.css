@@ -45,6 +45,47 @@ body {
   backdrop-filter: blur(24px);
 }
 
+.layout-field {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 16px 18px;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.layout-field legend {
+  padding: 0 8px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.layout-options {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.7);
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  transition: border 150ms ease, transform 150ms ease;
+}
+
+.option input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  accent-color: #38bdf8;
+}
+
+.option:hover {
+  border-color: rgba(56, 189, 248, 0.5);
+  transform: translateY(-1px);
+}
+
 .field {
   display: flex;
   flex-direction: column;
