@@ -20,6 +20,7 @@ let startIndex = 0;
 let pendingStartIndex: number | null = null;
 let isAnimating = false;
 let layoutMode: LayoutMode = 'card';
+let lastMessageTs = 0;
 
 const TRANSITION_MS = 700;
 
@@ -95,6 +96,11 @@ function animateLeft() {
 }
 
 function handleMessage(message: RotationMessage) {
+  if (typeof message.ts === 'number' && message.ts <= lastMessageTs) {
+    return;
+  }
+  lastMessageTs = message.ts ?? lastMessageTs;
+
   products = message.products ?? [];
   const incomingStartIndex = message.startIndex ?? 0;
 
