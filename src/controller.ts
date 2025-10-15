@@ -21,6 +21,8 @@ type LayoutMode = 'card' | 'image';
 
 let layoutMode: LayoutMode =
   layoutInputs.find((input) => input.checked)?.value === 'image' ? 'image' : 'card';
+let sessionId = generateSessionId();
+let sequence = 0;
 
 const DEFAULT_CARD_PRODUCTS = [
   `<figure class="product-card">
@@ -110,11 +112,18 @@ function composePayload(
   return {
     type,
     ts: performance.now(),
+    sessionId,
+    sequence: nextSequence(),
     startIndex,
     intervalMs,
     products,
     layoutMode,
   } satisfies RotationMessage;
+}
+
+function nextSequence(): number {
+  sequence += 1;
+  return sequence;
 }
 
 function broadcast(type: 'init' | 'tick' | 'stop') {
@@ -220,6 +229,8 @@ setStateLabel('Oczekiwanie na start');
 interface RotationMessage {
   type: 'init' | 'tick' | 'stop';
   ts: number;
+  sessionId: string;
+  sequence: number;
   startIndex: number;
   intervalMs: number;
   products: string[];
@@ -229,6 +240,10 @@ interface RotationMessage {
 interface OutgoingMessage {
   type: 'init' | 'tick' | 'stop';
   payload: RotationMessage;
+}
+
+function generateSessionId(): string {
+  return crypto.randomUUID();
 }
 
 interface OutgoingMessage {

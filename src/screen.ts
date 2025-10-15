@@ -20,7 +20,8 @@ let startIndex = 0;
 let pendingStartIndex: number | null = null;
 let isAnimating = false;
 let layoutMode: LayoutMode = 'card';
-let lastMessageTs = 0;
+let lastSequence = -1;
+let activeSessionId: string | null = null;
 
 const TRANSITION_MS = 700;
 
@@ -96,10 +97,24 @@ function animateLeft() {
 }
 
 function handleMessage(message: RotationMessage) {
-  if (typeof message.ts === 'number' && message.ts <= lastMessageTs) {
+  if (!message.sessionId) {
+    console.warn('Received message without sessionId', message);
     return;
   }
-  lastMessageTs = message.ts ?? lastMessageTs;
+
+  if (activeSessionId && message.sessionId !== activeSessionId) {
+    return;
+  }
+
+  if (!activeSessionId) {
+    activeSessionId = message.sessionId;
+  }
+
+  if (typeof message.sequence === 'number' && message.sequence <= lastSequence) {
+    return;
+  }
+
+  lastSequence = message.sequence ?? lastSequence;
 
   products = message.products ?? [];
   const incomingStartIndex = message.startIndex ?? 0;
@@ -165,6 +180,8 @@ void setupRealtime();
 interface RotationMessage {
   type: 'init' | 'tick' | 'stop';
   ts: number;
+  sessionId: string;
+  sequence: number;
   startIndex: number;
   intervalMs: number;
   products: string[];
