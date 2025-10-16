@@ -11,8 +11,18 @@ const layoutInputs = Array.from(
 );
 
 const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY as string | undefined;
-const PUSHER_ENDPOINT = (import.meta.env.VITE_PUSHER_ENDPOINT as string | undefined) ?? '/trigger';
+const PUSHER_ENDPOINT = normalizePusherEndpoint(
+  (import.meta.env.VITE_PUSHER_ENDPOINT as string | undefined) ?? '/trigger'
+);
 const useBroadcastFallback = !PUSHER_KEY;
+
+function normalizePusherEndpoint(url: string): string {
+  if (url.startsWith('/')) return url;
+  if (window.location.protocol === 'https:' && url.startsWith('http://')) {
+    return url.replace('http://', 'https://');
+  }
+  return url;
+}
 const broadcastChannel = useBroadcastFallback
   ? new BroadcastChannel('multiwall::rotation')
   : null;
