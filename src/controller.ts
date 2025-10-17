@@ -90,6 +90,41 @@ let sequence = 0;
 
 const DEFAULT_CARD_PRODUCTS = [
   `<figure class="product-card">
+    <img src="/products/Aleurwal.webp" alt="Ale urwał" />
+    <figcaption>
+      <h2>Ale urwał</h2>
+      <p>Zapieckanka z charakterem – dla prawdziwych smakoszy.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Baltona.webp" alt="Baltona" />
+    <figcaption>
+      <h2>Baltona</h2>
+      <p>Inspirowana smakami Bałtyku.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Borewicza.webp" alt="Borewicza" />
+    <figcaption>
+      <h2>Borewicza</h2>
+      <p>Dla detektywów dobrego smaku.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/ChytrejBaby.webp" alt="Chytrej Baby" />
+    <figcaption>
+      <h2>Chytrej Baby</h2>
+      <p>Sprytne połączenie sprawdzonych składników.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Cinkciarza.webp" alt="Cinkciarza" />
+    <figcaption>
+      <h2>Cinkciarza</h2>
+      <p>Wyśmienita transakcja smaku.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
     <img src="/products/CzarPrl.webp" alt="Czar PRL" />
     <figcaption>
       <h2>Czar PRL</h2>
@@ -104,26 +139,71 @@ const DEFAULT_CARD_PRODUCTS = [
     </figcaption>
   </figure>`,
   `<figure class="product-card">
+    <img src="/products/Kargula-i-pawlaka.webp" alt="Kargula i Pawlaka" />
+    <figcaption>
+      <h2>Kargula i Pawlaka</h2>
+      <p>Sąsiedzka klasyka – sprawdzona przepisem.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Mirka-Handalrza.webp" alt="Mirka Handlarza" />
+    <figcaption>
+      <h2>Mirka Handlarza</h2>
+      <p>Najlepsza oferta na rynku!</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Pan-tu-nie-stal.webp" alt="Pan tu nie stał" />
+    <figcaption>
+      <h2>Pan tu nie stał</h2>
+      <p>Ale teraz już stoisz – spróbuj!</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Pewex.webp" alt="Pewex" />
+    <figcaption>
+      <h2>Pewex</h2>
+      <p>Premium quality z peerelu.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Popularna.webp" alt="Popularna" />
+    <figcaption>
+      <h2>Popularna</h2>
+      <p>Najbardziej lubiana przez klientów.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Relax.webp" alt="Relax" />
+    <figcaption>
+      <h2>Relax</h2>
+      <p>Odprężająca kompozycja smaków.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
     <img src="/products/Zmiennika.webp" alt="Zmiennika" />
     <figcaption>
       <h2>Zmiennika</h2>
       <p>Zaskakujące połączenie sezonowych dodatków.</p>
     </figcaption>
   </figure>`,
-  `<figure class="product-card">
-    <img src="/products/CzarPrl.webp" alt="Czar PRL" />
-    <figcaption>
-      <h2>Czar PRL XL</h2>
-      <p>Większa porcja klasyka – idealna na dzielenie.</p>
-    </figcaption>
-  </figure>`,
 ];
 
 const DEFAULT_IMAGE_PRODUCTS = [
+  `<img class="slide-asset" src="/products/Aleurwal.webp" alt="Ale urwał" />`,
+  `<img class="slide-asset" src="/products/Baltona.webp" alt="Baltona" />`,
+  `<img class="slide-asset" src="/products/Borewicza.webp" alt="Borewicza" />`,
+  `<img class="slide-asset" src="/products/ChytrejBaby.webp" alt="Chytrej Baby" />`,
+  `<img class="slide-asset" src="/products/Cinkciarza.webp" alt="Cinkciarza" />`,
   `<img class="slide-asset" src="/products/CzarPrl.webp" alt="Czar PRL" />`,
   `<img class="slide-asset" src="/products/Gimbusa.webp" alt="Gimbusa" />`,
+  `<img class="slide-asset" src="/products/Kargula-i-pawlaka.webp" alt="Kargula i Pawlaka" />`,
+  `<img class="slide-asset" src="/products/Mirka-Handalrza.webp" alt="Mirka Handlarza" />`,
+  `<img class="slide-asset" src="/products/Pan-tu-nie-stal.webp" alt="Pan tu nie stał" />`,
+  `<img class="slide-asset" src="/products/Pewex.webp" alt="Pewex" />`,
+  `<img class="slide-asset" src="/products/Popularna.webp" alt="Popularna" />`,
+  `<img class="slide-asset" src="/products/Relax.webp" alt="Relax" />`,
   `<img class="slide-asset" src="/products/Zmiennika.webp" alt="Zmiennika" />`,
-  `<img class="slide-asset" src="/products/CzarPrl.webp" alt="Czar PRL XL" />`,
 ];
 
 let startIndex = 0;
