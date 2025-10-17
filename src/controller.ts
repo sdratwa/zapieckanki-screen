@@ -4,25 +4,23 @@ interface Instance {
   id: string;
   name: string;
   createdAt: number;
+  updatedAt?: number;
 }
 
-const STORAGE_KEY = 'zapieckanki-instances';
-
-function getInstances(): Instance[] {
+async function getInstance(id: string): Promise<Instance | null> {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveInstance(instance: Instance) {
-  const instances = getInstances();
-  const existing = instances.find((i) => i.id === instance.id);
-  if (!existing) {
-    instances.push(instance);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(instances));
+    const response = await fetch(`/api/instances/${id}`);
+    if (response.status === 404) {
+      return null;
+    }
+    if (!response.ok) {
+      console.error('Failed to fetch instance:', response.statusText);
+      return null;
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to fetch instance:', error);
+    return null;
   }
 }
 
@@ -38,16 +36,6 @@ if (!instanceId) {
   // Redirect to index if no instance specified
   window.location.href = '/';
   throw new Error('No instance specified');
-}
-
-// Save/update instance in localStorage
-const instances = getInstances();
-if (!instances.find((i) => i.id === instanceId)) {
-  saveInstance({
-    id: instanceId,
-    name: instanceId.charAt(0).toUpperCase() + instanceId.slice(1),
-    createdAt: Date.now(),
-  });
 }
 
 // ==================== UI ELEMENTS ====================
@@ -218,25 +206,46 @@ interface ControllerState {
   isRunning: boolean;
 }
 
-function getStateKey(): string {
-  return `controller-state-${instanceId}`;
-}
-
-function saveState() {
+async function saveState() {
   const state: ControllerState = {
     intervalSeconds: Number.parseInt(intervalInput.value, 10) || 10,
     products: productsTextarea.value,
     layoutMode,
     isRunning,
   };
-  localStorage.setItem(getStateKey(), JSON.stringify(state));
+
+  try {
+    const response = await fetch(`/api/instances/${instanceId}/state`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to save state:', response.statusText);
+    }
+  } catch (error) {
+    console.error('Failed to save state:', error);
+  }
 }
 
-function loadState(): ControllerState | null {
+async function loadState(): Promise<ControllerState | null> {
   try {
-    const stored = localStorage.getItem(getStateKey());
-    return stored ? JSON.parse(stored) : null;
-  } catch {
+    const response = await fetch(`/api/instances/${instanceId}/state`);
+    
+    if (response.status === 404) {
+      // State not found, return null (will use defaults)
+      return null;
+    }
+
+    if (!response.ok) {
+      console.error('Failed to load state:', response.statusText);
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to load state:', error);
     return null;
   }
 }
@@ -405,35 +414,44 @@ layoutInputs.forEach((input) => {
 });
 
 // Load saved state or use defaults
-const savedState = loadState();
-if (savedState) {
-  intervalInput.value = savedState.intervalSeconds.toString();
-  productsTextarea.value = savedState.products;
-  layoutMode = savedState.layoutMode;
-  isRunning = savedState.isRunning;
-  
-  // Update layout radio buttons
-  layoutInputs.forEach((input) => {
-    input.checked = input.value === layoutMode;
-  });
-  
-  productCountLabel.textContent = readProducts().length.toString();
-  setStateLabel(isRunning ? 'W trakcie rotacji (ekrany działają autonomicznie)' : 'Oczekiwanie na start');
-} else {
-  if (!productsTextarea.value.trim()) {
-    const defaults = layoutMode === 'image' ? DEFAULT_IMAGE_PRODUCTS : DEFAULT_CARD_PRODUCTS;
-    productsTextarea.value = defaults.join('\n\n');
-    productCountLabel.textContent = defaults.length.toString();
+(async () => {
+  const savedState = await loadState();
+  if (savedState) {
+    intervalInput.value = savedState.intervalSeconds.toString();
+    productsTextarea.value = savedState.products;
+    layoutMode = savedState.layoutMode;
+    isRunning = savedState.isRunning;
+    
+    // Update layout radio buttons
+    layoutInputs.forEach((input) => {
+      input.checked = input.value === layoutMode;
+    });
+    
+    productCountLabel.textContent = readProducts().length.toString();
+    setStateLabel(isRunning ? 'W trakcie rotacji (ekrany działają autonomicznie)' : 'Oczekiwanie na start');
+  } else {
+    if (!productsTextarea.value.trim()) {
+      const defaults = layoutMode === 'image' ? DEFAULT_IMAGE_PRODUCTS : DEFAULT_CARD_PRODUCTS;
+      productsTextarea.value = defaults.join('\n\n');
+      productCountLabel.textContent = defaults.length.toString();
+    }
+    setStateLabel('Oczekiwanie na start');
   }
-  setStateLabel('Oczekiwanie na start');
-}
+})();
 
 // Display instance info
-const instanceNameEl = document.getElementById('instanceName');
-if (instanceNameEl) {
-  const currentInstance = instances.find((i) => i.id === instanceId);
-  instanceNameEl.textContent = currentInstance?.name || instanceId;
-}
+(async () => {
+  const instanceNameEl = document.getElementById('instanceName');
+  if (instanceNameEl) {
+    const currentInstance = await getInstance(instanceId);
+    if (currentInstance) {
+      instanceNameEl.textContent = currentInstance.name;
+    } else {
+      instanceNameEl.textContent = instanceId;
+      console.warn(`Instance "${instanceId}" not found in backend. You may need to create it in the launcher.`);
+    }
+  }
+})();
 
 // Screen launcher
 const screenPosInput = document.getElementById('screenPos') as HTMLInputElement;

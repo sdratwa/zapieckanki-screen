@@ -12,3 +12,6 @@ pnpm-debug.log*
 .env
 .env.local
 .env*.local
+
+# Backend data storage (instances and states)
+data/

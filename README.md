@@ -21,14 +21,14 @@ Open http://localhost:5173/ to create your first instance and launch screens.
 ### Production Deployment
 
 1. **Build the frontend:**
-   ```bash
+```bash
    # Create .env.local with production values
    echo "VITE_PUSHER_KEY=your-key" > .env.local
    echo "VITE_PUSHER_CLUSTER=eu" >> .env.local
    # VITE_PUSHER_ENDPOINT defaults to '/trigger' - no need to set
    
-   npm run build
-   ```
+npm run build
+```
 
 2. **Deploy `dist/` to your web server** (Nginx, Apache, etc.)
 
@@ -52,7 +52,16 @@ Open http://localhost:5173/ to create your first instance and launch screens.
 Each **instance** is a separate set of synchronized screens (e.g., "Kielce", "Poznań"). Instances are:
 - Isolated (different products, timers, start/stop independently)
 - Multi-channel (each uses a unique Pusher channel: `rotation-kielce`, `rotation-poznan`)
-- Stored in browser localStorage (managed from index.html launcher)
+- **Centrally stored** in backend JSON files (accessible from any device/browser)
+
+**Backend API** (since v1.1.0):
+- `GET /api/instances` - List all instances
+- `POST /api/instances` - Create new instance
+- `DELETE /api/instances/:id` - Delete instance
+- `GET /api/instances/:id/state` - Get controller state (products, interval, layout)
+- `PUT /api/instances/:id/state` - Save controller state
+
+This allows managing instances from multiple devices without localStorage limitations.
 
 ### Server-Time Synchronization
 
@@ -212,6 +221,16 @@ server {
     # Frontend (static files)
     location / {
         try_files $uri $uri/ /index.html;
+    }
+
+    # Backend API (instances and state)
+    location /api/ {
+        proxy_pass http://localhost:3000/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     # Backend (Pusher relay)

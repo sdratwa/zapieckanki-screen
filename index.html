@@ -187,25 +187,39 @@
     </main>
 
     <script>
-      const STORAGE_KEY = 'zapieckanki-instances';
+      // ==================== API CALLS ====================
 
-      function getInstances() {
+      async function getInstances() {
         try {
-          const stored = localStorage.getItem(STORAGE_KEY);
-          return stored ? JSON.parse(stored) : [];
-        } catch {
+          const response = await fetch('/api/instances');
+          if (!response.ok) {
+            console.error('Failed to fetch instances:', response.statusText);
+            return [];
+          }
+          return await response.json();
+        } catch (error) {
+          console.error('Failed to fetch instances:', error);
           return [];
         }
       }
 
-      function saveInstance(instance) {
-        const instances = getInstances();
-        const existing = instances.find((i) => i.id === instance.id);
-        if (!existing) {
-          instances.push(instance);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(instances));
+      async function createInstance(id, name) {
+        try {
+          const response = await fetch('/api/instances', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, name }),
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to create instance');
+          }
+
+          return await response.json();
+        } catch (error) {
+          throw error;
         }
-        return instances;
       }
 
       async function deleteInstance(instanceId) {
@@ -215,8 +229,7 @@
 
         // Send STOP event to Pusher before deleting
         try {
-          const pusherEndpoint = '/trigger'; // Relative URL - works with nginx proxy
-          await fetch(pusherEndpoint, {
+          await fetch('/trigger', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -237,18 +250,27 @@
           console.error('Failed to send STOP event:', error);
         }
 
-        // Remove from localStorage
-        const instances = getInstances().filter((i) => i.id !== instanceId);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(instances));
-        
-        // Remove controller state
-        localStorage.removeItem(`controller-state-${instanceId}`);
-        
-        renderInstances();
+        // Delete instance from backend
+        try {
+          const response = await fetch(`/api/instances/${instanceId}`, {
+            method: 'DELETE',
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            alert(`Błąd usuwania: ${error.error || 'Unknown error'}`);
+            return;
+          }
+
+          await renderInstances();
+        } catch (error) {
+          console.error('Failed to delete instance:', error);
+          alert(`Błąd usuwania: ${error.message}`);
+        }
       }
 
-      function renderInstances() {
-        const instances = getInstances();
+      async function renderInstances() {
+        const instances = await getInstances();
         const list = document.getElementById('instancesList');
         const emptyState = document.getElementById('emptyState');
 
@@ -323,33 +345,30 @@
       window.deleteInstance = deleteInstance;
 
       // Form handler
-      document.getElementById('newInstanceForm').addEventListener('submit', (e) => {
+      document.getElementById('newInstanceForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const input = document.getElementById('instanceId');
         const instanceId = input.value.trim().toLowerCase();
 
         if (!instanceId) return;
 
-        // Validate: only a-z, 0-9, and hyphens
+        // Validate: only a-z, 0-9, and hyphens (backend also validates, but check here for better UX)
         if (!/^[a-z0-9-]+$/.test(instanceId)) {
           alert('ID instancji może zawierać tylko małe litery (a-z), cyfry (0-9) i myślniki (-).\n\nPolskie znaki (ą, ć, ę, ł, ń, ó, ś, ź, ż) nie są dozwolone.');
           return;
         }
 
-        const instances = getInstances();
-        if (instances.find((i) => i.id === instanceId)) {
-          alert(`Instancja "${instanceId}" już istnieje!`);
-          return;
+        try {
+          await createInstance(
+            instanceId,
+            instanceId.charAt(0).toUpperCase() + instanceId.slice(1)
+          );
+
+          input.value = '';
+          await renderInstances();
+        } catch (error) {
+          alert(`Błąd tworzenia instancji: ${error.message}`);
         }
-
-        saveInstance({
-          id: instanceId,
-          name: instanceId.charAt(0).toUpperCase() + instanceId.slice(1),
-          createdAt: Date.now(),
-        });
-
-        input.value = '';
-        renderInstances();
       });
 
       // Initial render
