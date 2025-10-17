@@ -111,13 +111,17 @@ function animateLeft() {
     belt.removeEventListener('transitionend', onDone);
     commitPendingStartIndex();
     
-    // After animation, currEl already has correct content (was set as nextEl before animation)
-    // Only update prevEl and nextEl to avoid re-rendering currEl (prevents Chrome image reload)
+    // After animation and snapToCenter, currEl will be in center again
+    // Update all three divs with new content based on new startIndex
     const newPrevContent = products[productIndex(-1, startIndex)] ?? '';
+    const newCurrContent = products[productIndex(0, startIndex)] ?? '';
     const newNextContent = products[productIndex(1, startIndex)] ?? '';
     
     if (prevEl.innerHTML !== newPrevContent) {
       prevEl.innerHTML = newPrevContent;
+    }
+    if (currEl.innerHTML !== newCurrContent) {
+      currEl.innerHTML = newCurrContent;
     }
     if (nextEl.innerHTML !== newNextContent) {
       nextEl.innerHTML = newNextContent;
