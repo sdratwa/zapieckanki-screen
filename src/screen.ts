@@ -76,9 +76,20 @@ function renderSlides(baseStartIndex: number = startIndex) {
     return;
   }
 
-  prevEl.innerHTML = products[productIndex(-1, baseStartIndex)] ?? '';
-  currEl.innerHTML = products[productIndex(0, baseStartIndex)] ?? '';
-  nextEl.innerHTML = products[productIndex(1, baseStartIndex)] ?? '';
+  const prevContent = products[productIndex(-1, baseStartIndex)] ?? '';
+  const currContent = products[productIndex(0, baseStartIndex)] ?? '';
+  const nextContent = products[productIndex(1, baseStartIndex)] ?? '';
+
+  // Only update innerHTML if content has changed (prevents unnecessary image reloads and flickering)
+  if (prevEl.innerHTML !== prevContent) {
+    prevEl.innerHTML = prevContent;
+  }
+  if (currEl.innerHTML !== currContent) {
+    currEl.innerHTML = currContent;
+  }
+  if (nextEl.innerHTML !== nextContent) {
+    nextEl.innerHTML = nextContent;
+  }
 
   const currentIndex = productIndex(0, baseStartIndex);
   setStatus(`Produkt ${currentIndex + 1} z ${products.length}`);
