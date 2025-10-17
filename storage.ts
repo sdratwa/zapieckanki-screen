@@ -25,7 +25,8 @@ export interface AdGroup {
   layoutMode: 'card' | 'image';
   productionMode: boolean;
   intervalSeconds?: number; // Only for carousel type
-  isRunning?: boolean; // Runtime state (not persisted in config)
+  isRunning?: boolean; // Runtime state - persisted to allow screens to sync on load
+  startTime?: number; // Unix timestamp when group was started - shared by all screens for sync
 }
 
 export interface InstanceConfig {
@@ -204,9 +205,9 @@ const DEFAULT_CAROUSEL_PRODUCTS = [
     </figcaption>
   </figure>`,
   `<figure class="product-card">
-    <img src="/products/Chytrejaroslawa.webp" alt="Chytre Jarosława" />
+    <img src="/products/ChytrejBaby.webp" alt="Chytrej Baby" />
     <figcaption>
-      <h2>Chytre Jarosława</h2>
+      <h2>Chytrej Baby</h2>
       <p>Z pomysłem na każdą okazję.</p>
     </figcaption>
   </figure>`,
@@ -232,38 +233,24 @@ const DEFAULT_CAROUSEL_PRODUCTS = [
     </figcaption>
   </figure>`,
   `<figure class="product-card">
-    <img src="/products/Janusza.webp" alt="Janusza" />
+    <img src="/products/Kargula-i-pawlaka.webp" alt="Kargula i Pawlaka" />
     <figcaption>
-      <h2>Janusza</h2>
-      <p>Prostota i klasyka – zawsze na miejscu.</p>
+      <h2>Kargula i Pawlaka</h2>
+      <p>Dla sąsiadów z poczuciem humoru.</p>
     </figcaption>
   </figure>`,
   `<figure class="product-card">
-    <img src="/products/Kowalskiego.webp" alt="Kowalskiego" />
+    <img src="/products/Mirka-Handalrza.webp" alt="Mirka Handlarza" />
     <figcaption>
-      <h2>Kowalskiego</h2>
-      <p>Solidna i uczciwa – po polsku.</p>
+      <h2>Mirka Handlarza</h2>
+      <p>Dla tych, którzy wiedzą co dobre.</p>
     </figcaption>
   </figure>`,
   `<figure class="product-card">
-    <img src="/products/Kulfonu.webp" alt="Kulfonu" />
+    <img src="/products/Pan-tu-nie-stal.webp" alt="Pan tu nie stał" />
     <figcaption>
-      <h2>Kulfonu</h2>
-      <p>Z nutą humoru – zapieckanka z podtekstem.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Mistrzaparku.webp" alt="Mistrza Parku" />
-    <figcaption>
-      <h2>Mistrza Parku</h2>
-      <p>Zwycięska kombinacja smaków.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Mistrzyni.webp" alt="Mistrzyni" />
-    <figcaption>
-      <h2>Mistrzyni</h2>
-      <p>Elegancka i wyrafinowana.</p>
+      <h2>Pan tu nie stał</h2>
+      <p>Dla tych, którzy chcą być pierwsi.</p>
     </figcaption>
   </figure>`,
   `<figure class="product-card">
@@ -271,6 +258,20 @@ const DEFAULT_CAROUSEL_PRODUCTS = [
     <figcaption>
       <h2>Pewex</h2>
       <p>Luksusowa wersja z zachodnimi akcentami.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Popularna.webp" alt="Popularna" />
+    <figcaption>
+      <h2>Popularna</h2>
+      <p>Klasyka, którą wszyscy kochają.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Relax.webp" alt="Relax" />
+    <figcaption>
+      <h2>Relax</h2>
+      <p>Zapieckanka do odpoczynku i relaksu.</p>
     </figcaption>
   </figure>`,
   `<figure class="product-card">
@@ -282,13 +283,7 @@ const DEFAULT_CAROUSEL_PRODUCTS = [
   </figure>`,
 ];
 
-const DEFAULT_STATIC_PRODUCT = `<figure class="product-card">
-  <img src="/products/CzarPrl.webp" alt="Menu główne" />
-  <figcaption>
-    <h2>Menu</h2>
-    <p>Zobacz pełną ofertę naszych zapiekanek!</p>
-  </figcaption>
-</figure>`;
+const DEFAULT_STATIC_PRODUCT = `<img src="/products/menu-sample.png" alt="Menu" />`;
 
 function createDefaultConfig(): InstanceConfig {
   return {
@@ -301,13 +296,14 @@ function createDefaultConfig(): InstanceConfig {
         layoutMode: 'card',
         productionMode: true,
         intervalSeconds: 10,
+        isRunning: false, // Initially stopped - user must click START
       },
       {
         id: 'default-static',
         name: 'Menu statyczne',
         type: 'static',
         products: [DEFAULT_STATIC_PRODUCT],
-        layoutMode: 'card',
+        layoutMode: 'image',
         productionMode: false,
       },
     ],

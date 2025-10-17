@@ -8,6 +8,8 @@ interface AdGroup {
   layoutMode: 'card' | 'image';
   productionMode: boolean;
   intervalSeconds?: number;
+  isRunning?: boolean;
+  startTime?: number;
 }
 
 interface InstanceConfig {
@@ -81,9 +83,9 @@ const PUSHER_ENDPOINT = normalizePusherEndpoint(
   (import.meta.env.VITE_PUSHER_ENDPOINT as string | undefined) ?? '/trigger'
 );
 const useBroadcastFallback = !PUSHER_KEY;
-const broadcastChannel = useBroadcastFallback
-  ? new BroadcastChannel('multiwall::rotation')
-  : null;
+
+// BroadcastChannels will be created per-group (see broadcast() function)
+// No single shared channel anymore!
 
 const sessionId = generateSessionId();
 let lastSequenceTime = 0;
@@ -123,10 +125,15 @@ async function broadcast(type: 'init' | 'stop', groupId: string, group: AdGroup)
     productionMode: group.productionMode,
     instanceId,
     groupId,
+    startTime: group.startTime, // ← SHARED START TIME for all screens
   };
 
   if (useBroadcastFallback) {
-    broadcastChannel?.postMessage(payload);
+    // Create BroadcastChannel per-group: multiwall::rotation-{groupId}
+    const channelName = `multiwall::rotation-${groupId}`;
+    const channel = new BroadcastChannel(channelName);
+    channel.postMessage(payload);
+    channel.close(); // Close after sending
     return;
   }
 
@@ -135,6 +142,45 @@ async function broadcast(type: 'init' | 'stop', groupId: string, group: AdGroup)
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, payload }),
+    });
+
+    if (!response.ok) {
+      console.error('Pusher trigger failed:', response.statusText);
+    }
+  } catch (error) {
+    console.error('Pusher trigger error:', error);
+  }
+}
+
+async function broadcastConfigUpdate(groupId: string, group: AdGroup) {
+  const payload = {
+    type: 'config-update',
+    ts: performance.now(),
+    sessionId,
+    sequence: nextSequence(),
+    startIndex: 0,
+    intervalMs: (group.intervalSeconds || 10) * 1000,
+    products: group.products,
+    layoutMode: group.layoutMode,
+    productionMode: group.productionMode,
+    instanceId,
+    groupId,
+    startTime: group.startTime,
+  };
+
+  if (useBroadcastFallback) {
+    const channelName = `multiwall::rotation-${groupId}`;
+    const channel = new BroadcastChannel(channelName);
+  channel.postMessage(payload);
+    channel.close();
+    return;
+  }
+
+  try {
+    const response = await fetch(PUSHER_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'config-update', payload }),
     });
 
     if (!response.ok) {
@@ -203,6 +249,8 @@ function renderGroupItem(group: AdGroup): string {
   const intervalLabel = group.type === 'carousel' ? `Interwał: ${group.intervalSeconds}s` : '';
   const layoutLabel = group.layoutMode === 'card' ? 'Karta produktu' : 'Pełny ekran';
   const productCountLabel = `${group.products.length} produkt(ów)`;
+  const isRunning = group.isRunning === true;
+  const statusLabel = isRunning ? '🟢 RUNNING' : '🔴 STOPPED';
   
   // Find screens assigned to this group
   const assignedScreens = Object.entries(currentConfig.screenAssignments)
@@ -215,7 +263,7 @@ function renderGroupItem(group: AdGroup): string {
     <div class="group-item" data-group-id="${group.id}">
       <div class="group-header">
         <div class="group-info">
-          <h3 class="group-name">${escapeHtml(group.name)}</h3>
+          <h3 class="group-name">${escapeHtml(group.name)} <span style="font-size: 0.8em; font-weight: normal;">${group.type === 'carousel' ? statusLabel : ''}</span></h3>
           <div class="group-meta">
             <span>🔄 ${typeLabel}</span>
             ${intervalLabel ? `<span>⏱️ ${intervalLabel}</span>` : ''}
@@ -225,8 +273,8 @@ function renderGroupItem(group: AdGroup): string {
         </div>
         <div class="group-actions">
           ${group.type === 'carousel' ? `
-            <button class="btn btn-success btn-small" onclick="startGroup('${group.id}')">▶️ START</button>
-            <button class="btn btn-danger btn-small" onclick="stopGroup('${group.id}')">⏹️ STOP</button>
+            <button class="btn btn-success btn-small" onclick="startGroup('${group.id}')" ${isRunning ? 'disabled' : ''}>▶️ START</button>
+            <button class="btn btn-danger btn-small" onclick="stopGroup('${group.id}')" ${!isRunning ? 'disabled' : ''}>⏹️ STOP</button>
           ` : ''}
           <button class="btn btn-secondary btn-small" onclick="editGroup('${group.id}')">⚙️ Edytuj</button>
           <button class="btn btn-danger btn-small" onclick="deleteGroup('${group.id}')">🗑️ Usuń</button>
@@ -331,6 +379,10 @@ function escapeHtml(text: string): string {
     return;
   }
 
+  // Find existing group to preserve runtime state (isRunning, startTime)
+  const existingIndex = currentConfig.adGroups.findIndex((g) => g.id === groupId);
+  const existingGroup = existingIndex >= 0 ? currentConfig.adGroups[existingIndex] : null;
+
   const newGroup: AdGroup = {
     id: groupId,
     name,
@@ -339,10 +391,12 @@ function escapeHtml(text: string): string {
     layoutMode,
     productionMode,
     intervalSeconds: type === 'carousel' ? intervalSeconds : undefined,
+    // Preserve runtime state from existing group
+    isRunning: existingGroup?.isRunning,
+    startTime: existingGroup?.startTime,
   };
 
   // Update or add group
-  const existingIndex = currentConfig.adGroups.findIndex((g) => g.id === groupId);
   if (existingIndex >= 0) {
     currentConfig.adGroups[existingIndex] = newGroup;
   } else {
@@ -350,6 +404,10 @@ function escapeHtml(text: string): string {
   }
 
   await saveConfig();
+  
+  // Broadcast config update to screens in this group
+  await broadcastConfigUpdate(groupId, newGroup);
+  
   await loadConfig();
   
   (window as any).closeGroupModal();
@@ -387,14 +445,32 @@ function escapeHtml(text: string): string {
   const group = currentConfig.adGroups.find((g) => g.id === groupId);
   if (!group) return;
 
+  // Mark group as running and record start time (shared by all screens for sync)
+  group.isRunning = true;
+  group.startTime = Date.now();
+  await saveConfig();
+
+  // Broadcast init event to screens
   await broadcast('init', groupId, group);
+  
+  // Re-render UI to show running state
+  renderGroups();
 };
 
 (window as any).stopGroup = async function(groupId: string) {
   const group = currentConfig.adGroups.find((g) => g.id === groupId);
   if (!group) return;
 
+  // Mark group as stopped and clear start time
+  group.isRunning = false;
+  group.startTime = undefined;
+  await saveConfig();
+
+  // Broadcast stop event to screens
   await broadcast('stop', groupId, group);
+  
+  // Re-render UI to show stopped state
+  renderGroups();
 };
 
 // ==================== SCREEN ASSIGNMENT OPERATIONS ====================
@@ -443,17 +519,26 @@ function escapeHtml(text: string): string {
 // ==================== GLOBAL OPERATIONS ====================
 
 (window as any).startAll = async function() {
+  const now = Date.now();
   for (const group of currentConfig.adGroups) {
     if (group.type === 'carousel') {
+      group.isRunning = true;
+      group.startTime = now; // Same start time for all groups
       await broadcast('init', group.id, group);
     }
   }
+  await saveConfig();
+  renderGroups();
 };
 
 (window as any).stopAll = async function() {
   for (const group of currentConfig.adGroups) {
+    group.isRunning = false;
+    group.startTime = undefined;
     await broadcast('stop', group.id, group);
   }
+  await saveConfig();
+  renderGroups();
 };
 
 // ==================== SCREEN LAUNCHER ====================

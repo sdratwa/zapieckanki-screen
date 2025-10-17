@@ -35,8 +35,17 @@ app.post('/trigger', async (req, res) => {
   }
 
   const instanceId = payload?.instanceId || 'default';
-  const channelName = `rotation-${instanceId}`;
+  const groupId = payload?.groupId;
+  
+  if (!groupId) {
+    return res.status(400).json({ error: 'Missing groupId in payload' });
+  }
+
+  // Build channel name with groupId: rotation-{instanceId}-{groupId}
+  const channelName = `rotation-${instanceId}-${groupId}`;
   const serverTime = Date.now();
+
+  console.log(`Triggering event on channel: ${channelName}`);
 
   try {
     await pusher.trigger(channelName, 'rotation-event', {
@@ -44,7 +53,7 @@ app.post('/trigger', async (req, res) => {
       payload: { ...payload, serverTime },
       ts: serverTime,
     });
-    res.json({ ok: true, serverTime });
+    res.json({ ok: true, serverTime, channelName });
   } catch (error) {
     console.error('Pusher trigger failed', error);
     res.status(500).json({ error: 'Failed to trigger event' });

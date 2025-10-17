@@ -13,10 +13,10 @@ const stageEl = document.querySelector('.stage') as HTMLElement;
 const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY as string | undefined;
 const PUSHER_CLUSTER = import.meta.env.VITE_PUSHER_CLUSTER as string | undefined;
 const useBroadcastFallback = !PUSHER_KEY;
-const channelName = useBroadcastFallback
-  ? 'multiwall::rotation'
-  : `rotation-${instanceId}`;
-const channel = useBroadcastFallback ? new BroadcastChannel(channelName) : null;
+
+// Channel will be created AFTER we know the groupId
+let channelName = '';
+let channel: BroadcastChannel | null = null;
 
 let products: string[] = [];
 let startIndex = 0;
@@ -66,6 +66,15 @@ function productIndex(offset: number, baseStartIndex: number = startIndex): numb
   return normalizeIndex(index, length);
 }
 
+function extractImgTag(productHtml: string): string {
+  // If layoutMode is 'image', extract only <img> tag from HTML
+  if (layoutMode === 'image') {
+    const imgMatch = productHtml.match(/<img[^>]*>/i);
+    return imgMatch ? imgMatch[0] : productHtml;
+  }
+  return productHtml;
+}
+
 function renderSlides(baseStartIndex: number = startIndex) {
   if (products.length === 0) {
     prevEl.innerHTML = '';
@@ -76,9 +85,10 @@ function renderSlides(baseStartIndex: number = startIndex) {
     return;
   }
 
-  const prevContent = products[productIndex(-1, baseStartIndex)] ?? '';
-  const currContent = products[productIndex(0, baseStartIndex)] ?? '';
-  const nextContent = products[productIndex(1, baseStartIndex)] ?? '';
+  // Get content and extract <img> if in image mode
+  const prevContent = extractImgTag(products[productIndex(-1, baseStartIndex)] ?? '');
+  const currContent = extractImgTag(products[productIndex(0, baseStartIndex)] ?? '');
+  const nextContent = extractImgTag(products[productIndex(1, baseStartIndex)] ?? '');
 
   // Only update innerHTML if content has changed (prevents unnecessary image reloads and flickering)
   if (prevEl.innerHTML !== prevContent) {
@@ -113,9 +123,10 @@ function animateLeft() {
     
     // After animation and snapToCenter, currEl will be in center again
     // Update all three divs with new content based on new startIndex
-    const newPrevContent = products[productIndex(-1, startIndex)] ?? '';
-    const newCurrContent = products[productIndex(0, startIndex)] ?? '';
-    const newNextContent = products[productIndex(1, startIndex)] ?? '';
+    // Use extractImgTag to respect layoutMode
+    const newPrevContent = extractImgTag(products[productIndex(-1, startIndex)] ?? '');
+    const newCurrContent = extractImgTag(products[productIndex(0, startIndex)] ?? '');
+    const newNextContent = extractImgTag(products[productIndex(1, startIndex)] ?? '');
     
     if (prevEl.innerHTML !== newPrevContent) {
       prevEl.innerHTML = newPrevContent;
@@ -166,7 +177,8 @@ function syncToGlobalIndex() {
     
     // Only update nextEl with the upcoming product (prevents double rendering)
     // Use offset=0 with pendingStartIndex because nextEl will become currEl after animation
-    const nextContent = products[productIndex(0, pendingStartIndex)] ?? '';
+    // Use extractImgTag to respect layoutMode
+    const nextContent = extractImgTag(products[productIndex(0, pendingStartIndex)] ?? '');
     if (nextEl.innerHTML !== nextContent) {
       nextEl.innerHTML = nextContent;
     }
@@ -233,17 +245,7 @@ function handleMessage(message: RotationMessage) {
     return;
   }
 
-  // FILTER BY GROUP ID - only process messages for our assigned group
-  if (message.groupId && message.groupId !== currentGroup.id) {
-    console.debug(`Ignoring message for different group: ${message.groupId} (mine: ${currentGroup.id})`);
-    return;
-  }
-
-  // STATIC MODE - ignore rotation events
-  if (currentMode === 'static') {
-    console.debug('Static mode - ignoring rotation events');
-    return;
-  }
+  // NOTE: No need to filter by groupId anymore - each screen subscribes to its own channel!
 
   // Update last sequence and session tracking
   lastSequence = message.sequence ?? lastSequence;
@@ -252,6 +254,27 @@ function handleMessage(message: RotationMessage) {
   if (message.sessionId && message.sessionId !== activeSessionId) {
     console.log(`Controller switched: ${activeSessionId || 'none'} → ${message.sessionId}`);
     activeSessionId = message.sessionId;
+  }
+
+  // STATIC MODE - handle config updates but ignore rotation events
+  if (currentMode === 'static') {
+    console.debug('Static mode - processing config update');
+    
+    // Update layout and production mode
+    layoutMode = message.layoutMode ?? layoutMode;
+    if (message.productionMode !== undefined) {
+      document.body.classList.toggle('production-mode', message.productionMode);
+      setStatus(message.productionMode ? '' : 'Statyczny');
+    }
+    stageEl.classList.toggle('stage--image', layoutMode === 'image');
+    
+    // Update product if provided - use extractImgTag to respect layoutMode
+    if (message.products && message.products.length > 0) {
+      currEl.innerHTML = extractImgTag(message.products[0] || '');
+    }
+    
+    // Ignore init/stop events
+    return;
   }
 
   products = message.products ?? [];
@@ -265,8 +288,8 @@ function handleMessage(message: RotationMessage) {
 
   switch (message.type) {
     case 'init':
-      // Server provides the synchronized start time
-      serverStartTime = message.serverTime ?? Date.now();
+      // Use shared group start time for perfect sync across all screens
+      serverStartTime = message.startTime ?? message.serverTime ?? Date.now();
       pendingStartIndex = null;
       isAnimating = false;
 
@@ -282,12 +305,26 @@ function handleMessage(message: RotationMessage) {
       setStatus('Zatrzymano');
       break;
 
+    case 'config-update':
+      // Config changed (layout, products, production mode) - re-render but DON'T restart timer
+      console.log('Config updated - re-rendering slides');
+      renderSlides(startIndex);
+      stageEl.classList.toggle('stage--image', layoutMode === 'image');
+      break;
+
     default:
       break;
   }
 }
 
-async function setupRealtime() {
+async function setupRealtimeForGroup(groupId: string) {
+  // Build channel name with groupId: rotation-{instanceId}-{groupId}
+  channelName = useBroadcastFallback
+    ? `multiwall::rotation-${groupId}`
+    : `rotation-${instanceId}-${groupId}`;
+
+  console.log(`Subscribing to channel: ${channelName}`);
+
   if (!useBroadcastFallback) {
     const { default: Pusher } = await import('pusher-js');
     const pusher = new Pusher(PUSHER_KEY!, {
@@ -298,9 +335,8 @@ async function setupRealtime() {
     subscription.bind('rotation-event', (data: RotationEnvelope) => {
       handleMessage(data.payload);
     });
-  }
-
-  if (channel) {
+  } else {
+    channel = new BroadcastChannel(channelName);
     channel.addEventListener('message', (event) => {
       const message = event.data as RotationMessage;
       handleMessage(message);
@@ -319,7 +355,8 @@ interface RotationMessage {
   intervalMs: number;
   products: string[];
   layoutMode?: LayoutMode;
-  serverTime?: number;
+  serverTime?: number; // Legacy - still provided by server for fallback
+  startTime?: number; // Shared start time from group - used for sync
   instanceId?: string;
   productionMode?: boolean;
   groupId?: string; // For group-specific updates
@@ -340,6 +377,8 @@ interface AdGroup {
   layoutMode: 'card' | 'image';
   productionMode: boolean;
   intervalSeconds?: number;
+  isRunning?: boolean;
+  startTime?: number;
 }
 
 interface InstanceConfig {
@@ -383,9 +422,9 @@ async function initScreen() {
     
     // Setup based on group type
     if (myGroup.type === 'carousel') {
-      setupCarouselMode(myGroup);
+      await setupCarouselMode(myGroup);
     } else if (myGroup.type === 'static') {
-      setupStaticMode(myGroup);
+      await setupStaticMode(myGroup);
     }
     
   } catch (error) {
@@ -394,7 +433,7 @@ async function initScreen() {
   }
 }
 
-function setupCarouselMode(group: AdGroup) {
+async function setupCarouselMode(group: AdGroup) {
   console.log(`Setting up carousel mode for group: ${group.name}`);
   
   products = group.products;
@@ -402,20 +441,32 @@ function setupCarouselMode(group: AdGroup) {
   intervalMs = (group.intervalSeconds || 10) * 1000;
   document.body.classList.toggle('production-mode', group.productionMode ?? false);
   
-  // Render initial state (will wait for 'init' event to start timer)
+  // Render initial state
   renderSlides();
-  setStatus('Oczekiwanie na start...');
+  
+  // Subscribe to THIS GROUP's channel
+  await setupRealtimeForGroup(group.id);
+  
+  // AUTO-START if group is already running
+  if (group.isRunning === true && group.startTime) {
+    console.log(`Group is already running - auto-starting timer with shared startTime: ${group.startTime}`);
+    serverStartTime = group.startTime; // ← USE THE SAME START TIME FOR ALL SCREENS!
+    startAutonomousTimer();
+    setStatus('Auto-start - zsynchronizowano');
+  } else {
+    setStatus('Oczekiwanie na start...');
+  }
 }
 
-function setupStaticMode(group: AdGroup) {
+async function setupStaticMode(group: AdGroup) {
   console.log(`Setting up static mode for group: ${group.name}`);
   
   layoutMode = group.layoutMode;
   document.body.classList.toggle('production-mode', group.productionMode ?? false);
   
-  // Render first product (static, no rotation)
+  // Render first product (static, no rotation) - use extractImgTag to respect layoutMode
   if (group.products.length > 0) {
-    currEl.innerHTML = group.products[0] || '';
+    currEl.innerHTML = extractImgTag(group.products[0] || '');
     setStatus(group.productionMode ? '' : 'Statyczny');
   } else {
     currEl.innerHTML = '<em>Brak produktu</em>';
@@ -427,6 +478,9 @@ function setupStaticMode(group: AdGroup) {
   // Hide prev/next slides for static mode
   prevEl.innerHTML = '';
   nextEl.innerHTML = '';
+  
+  // Subscribe to THIS GROUP's channel (even though static screens ignore rotation events)
+  await setupRealtimeForGroup(group.id);
 }
 
 // Initialize screen on load
@@ -434,4 +488,3 @@ window.addEventListener('focus', () => setBadge());
 setBadge();
 snapToCenter();
 void initScreen();
-void setupRealtime();
