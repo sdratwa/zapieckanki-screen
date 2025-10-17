@@ -181,22 +181,114 @@ export async function saveControllerState(instanceId: string, state: ControllerS
 
 // ==================== INSTANCE CONFIGURATION (Ad Groups) ====================
 
-const DEFAULT_PRODUCTS = [
-  '<img src="/products/CzarPrl.webp" alt="Czar PRL" />',
-  '<img src="/products/Pewex.webp" alt="Pewex" />',
-  '<img src="/products/Aleurwal.webp" alt="Ale urwał" />',
-  '<img src="/products/Baltona.webp" alt="Baltona" />',
-  '<img src="/products/Borewicza.webp" alt="Borewicza" />',
-  '<img src="/products/Chytrejaroslawa.webp" alt="Chytre Jarosława" />',
-  '<img src="/products/Cinkciarza.webp" alt="Cinkciarza" />',
-  '<img src="/products/Gimbusa.webp" alt="Gimbusa" />',
-  '<img src="/products/Janusza.webp" alt="Janusza" />',
-  '<img src="/products/Kowalskiego.webp" alt="Kowalskiego" />',
-  '<img src="/products/Kulfonu.webp" alt="Kulfonu" />',
-  '<img src="/products/Mistrzaparku.webp" alt="Mistrza Parku" />',
-  '<img src="/products/Mistrzyni.webp" alt="Mistrzyni" />',
-  '<img src="/products/Zmiennika.webp" alt="Zmiennika" />',
+const DEFAULT_CAROUSEL_PRODUCTS = [
+  `<figure class="product-card">
+    <img src="/products/Aleurwal.webp" alt="Ale urwał" />
+    <figcaption>
+      <h2>Ale urwał</h2>
+      <p>Zapieckanka z charakterem – dla prawdziwych smakoszy.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Baltona.webp" alt="Baltona" />
+    <figcaption>
+      <h2>Baltona</h2>
+      <p>Inspirowana smakami Bałtyku.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Borewicza.webp" alt="Borewicza" />
+    <figcaption>
+      <h2>Borewicza</h2>
+      <p>Dla detektywów dobrego smaku.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Chytrejaroslawa.webp" alt="Chytre Jarosława" />
+    <figcaption>
+      <h2>Chytre Jarosława</h2>
+      <p>Z pomysłem na każdą okazję.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Cinkciarza.webp" alt="Cinkciarza" />
+    <figcaption>
+      <h2>Cinkciarza</h2>
+      <p>Bogata kombinacja – dla wymagających.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/CzarPrl.webp" alt="Czar PRL" />
+    <figcaption>
+      <h2>Czar PRL</h2>
+      <p>Zapieckanka z pieczarkami, serem i szczypiorkiem.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Gimbusa.webp" alt="Gimbusa" />
+    <figcaption>
+      <h2>Gimbusa</h2>
+      <p>Dla młodych duchem – świeża i energetyczna.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Janusza.webp" alt="Janusza" />
+    <figcaption>
+      <h2>Janusza</h2>
+      <p>Prostota i klasyka – zawsze na miejscu.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Kowalskiego.webp" alt="Kowalskiego" />
+    <figcaption>
+      <h2>Kowalskiego</h2>
+      <p>Solidna i uczciwa – po polsku.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Kulfonu.webp" alt="Kulfonu" />
+    <figcaption>
+      <h2>Kulfonu</h2>
+      <p>Z nutą humoru – zapieckanka z podtekstem.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Mistrzaparku.webp" alt="Mistrza Parku" />
+    <figcaption>
+      <h2>Mistrza Parku</h2>
+      <p>Zwycięska kombinacja smaków.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Mistrzyni.webp" alt="Mistrzyni" />
+    <figcaption>
+      <h2>Mistrzyni</h2>
+      <p>Elegancka i wyrafinowana.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Pewex.webp" alt="Pewex" />
+    <figcaption>
+      <h2>Pewex</h2>
+      <p>Luksusowa wersja z zachodnimi akcentami.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/Zmiennika.webp" alt="Zmiennika" />
+    <figcaption>
+      <h2>Zmiennika</h2>
+      <p>Niespodzianka w każdym kęsie.</p>
+    </figcaption>
+  </figure>`,
 ];
+
+const DEFAULT_STATIC_PRODUCT = `<figure class="product-card">
+  <img src="/products/CzarPrl.webp" alt="Menu główne" />
+  <figcaption>
+    <h2>Menu</h2>
+    <p>Zobacz pełną ofertę naszych zapiekanek!</p>
+  </figcaption>
+</figure>`;
 
 function createDefaultConfig(): InstanceConfig {
   return {
@@ -205,16 +297,25 @@ function createDefaultConfig(): InstanceConfig {
         id: 'default-products',
         name: 'Produkty',
         type: 'carousel',
-        products: DEFAULT_PRODUCTS,
-        layoutMode: 'image',
+        products: DEFAULT_CAROUSEL_PRODUCTS,
+        layoutMode: 'card',
         productionMode: true,
         intervalSeconds: 10,
+      },
+      {
+        id: 'default-static',
+        name: 'Menu statyczne',
+        type: 'static',
+        products: [DEFAULT_STATIC_PRODUCT],
+        layoutMode: 'card',
+        productionMode: false,
       },
     ],
     screenAssignments: {
       '0': 'default-products',
       '1': 'default-products',
       '2': 'default-products',
+      '3': 'default-static',
     },
   };
 }
