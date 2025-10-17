@@ -227,6 +227,18 @@ function handleMessage(message: RotationMessage) {
     return;
   }
 
+  // FILTER BY GROUP ID - only process messages for our assigned group
+  if (currentGroup && message.groupId && message.groupId !== currentGroup.id) {
+    console.debug(`Ignoring message for different group: ${message.groupId} (mine: ${currentGroup.id})`);
+    return;
+  }
+
+  // STATIC MODE - ignore rotation events
+  if (currentMode === 'static') {
+    console.debug('Static mode - ignoring rotation events');
+    return;
+  }
+
   // Update last sequence and session tracking
   lastSequence = message.sequence ?? lastSequence;
   
