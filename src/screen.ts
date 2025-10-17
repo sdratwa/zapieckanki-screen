@@ -110,7 +110,24 @@ function animateLeft() {
   const onDone = () => {
     belt.removeEventListener('transitionend', onDone);
     commitPendingStartIndex();
-    renderSlides(startIndex);
+    
+    // After animation, currEl already has correct content (was set as nextEl before animation)
+    // Only update prevEl and nextEl to avoid re-rendering currEl (prevents Chrome image reload)
+    const newPrevContent = products[productIndex(-1, startIndex)] ?? '';
+    const newNextContent = products[productIndex(1, startIndex)] ?? '';
+    
+    if (prevEl.innerHTML !== newPrevContent) {
+      prevEl.innerHTML = newPrevContent;
+    }
+    if (nextEl.innerHTML !== newNextContent) {
+      nextEl.innerHTML = newNextContent;
+    }
+    
+    // Update status
+    const currentIndex = productIndex(0, startIndex);
+    setStatus(`Produkt ${currentIndex + 1} z ${products.length}`);
+    stageEl.classList.toggle('stage--image', layoutMode === 'image');
+    
     snapToCenter();
     isAnimating = false;
   };
