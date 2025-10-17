@@ -144,7 +144,8 @@ function syncToGlobalIndex() {
     pendingStartIndex = newStartIndex;
     
     // Only update nextEl with the upcoming product (prevents double rendering)
-    const nextContent = products[productIndex(1, pendingStartIndex)] ?? '';
+    // Use offset=0 with pendingStartIndex because nextEl will become currEl after animation
+    const nextContent = products[productIndex(0, pendingStartIndex)] ?? '';
     if (nextEl.innerHTML !== nextContent) {
       nextEl.innerHTML = nextContent;
     }
