@@ -147,3 +147,9 @@ a {
 em {
   color: #94a3b8;
 }
+
+/* Production mode - hide UI counters */
+body.production-mode .badge,
+body.production-mode .status {
+  display: none !important;
+}

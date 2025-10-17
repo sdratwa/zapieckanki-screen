@@ -51,6 +51,7 @@ const productCountLabel = document.getElementById('productCount') as HTMLElement
 const layoutInputs = Array.from(
   document.querySelectorAll<HTMLInputElement>('input[name="layoutMode"]'),
 );
+const productionModeCheckbox = document.getElementById('productionMode') as HTMLInputElement;
 
 const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY as string | undefined;
 const PUSHER_ENDPOINT = normalizePusherEndpoint(
@@ -74,7 +75,8 @@ type LayoutMode = 'card' | 'image';
 let layoutMode: LayoutMode =
   layoutInputs.find((input) => input.checked)?.value === 'image' ? 'image' : 'card';
 let sessionId = generateSessionId();
-let sequence = 0;
+// Use timestamp as sequence to ensure globally increasing values across controller restarts
+let lastSequenceTime = 0;
 
 const DEFAULT_CARD_PRODUCTS = [
   `<figure class="product-card">
@@ -204,6 +206,7 @@ interface ControllerState {
   products: string;
   layoutMode: LayoutMode;
   isRunning: boolean;
+  productionMode: boolean;
 }
 
 async function saveState() {
@@ -212,6 +215,7 @@ async function saveState() {
     products: productsTextarea.value,
     layoutMode,
     isRunning,
+    productionMode: productionModeCheckbox.checked,
   };
 
   try {
@@ -327,12 +331,21 @@ function composePayload(
     products: processedProducts,
     layoutMode,
     instanceId,
+    productionMode: productionModeCheckbox.checked,
   } satisfies RotationMessage;
 }
 
 function nextSequence(): number {
-  sequence += 1;
-  return sequence;
+  // Use timestamp (ms) as sequence to ensure globally increasing values
+  // Even if controller is closed and reopened, sequence will always be higher
+  const now = Date.now();
+  if (now <= lastSequenceTime) {
+    // Prevent duplicate timestamps (in case of very fast consecutive calls)
+    lastSequenceTime += 1;
+  } else {
+    lastSequenceTime = now;
+  }
+  return lastSequenceTime;
 }
 
 function broadcast(type: 'init' | 'tick' | 'stop') {
@@ -384,6 +397,7 @@ resetBtn.addEventListener('click', handleReset);
 
 intervalInput.addEventListener('change', () => {
   saveState();
+  syncToControllers(); // Sync to other controllers
   if (isRunning) {
     broadcast('init');
   }
@@ -391,6 +405,7 @@ intervalInput.addEventListener('change', () => {
 
 productsTextarea.addEventListener('change', () => {
   saveState();
+  syncToControllers(); // Sync to other controllers
   if (isRunning) {
     broadcast('init');
   }
@@ -406,11 +421,20 @@ layoutInputs.forEach((input) => {
     }
     productCountLabel.textContent = readProducts().length.toString();
     saveState();
+    syncToControllers(); // Sync to other controllers
     if (isRunning) {
       startIndex = 0;
       broadcast('init');
     }
   });
+});
+
+productionModeCheckbox.addEventListener('change', () => {
+  saveState();
+  syncToControllers(); // Sync to other controllers
+  if (isRunning) {
+    broadcast('init');
+  }
 });
 
 // Load saved state or use defaults
@@ -421,6 +445,7 @@ layoutInputs.forEach((input) => {
     productsTextarea.value = savedState.products;
     layoutMode = savedState.layoutMode;
     isRunning = savedState.isRunning;
+    productionModeCheckbox.checked = savedState.productionMode ?? false;
     
     // Update layout radio buttons
     layoutInputs.forEach((input) => {
@@ -468,6 +493,108 @@ const screenPosInput = document.getElementById('screenPos') as HTMLInputElement;
   window.open(`/screen.html?instance=${instanceId}&pos=${pos}`, '_blank');
 };
 
+// ==================== CONTROLLER SYNCHRONIZATION ====================
+
+let lastSyncSequence = -1;
+
+function syncToControllers() {
+  // Send controller-sync event to other controllers via Pusher
+  const intervalMs = getIntervalMs();
+  const products = readProducts();
+
+  const syncPayload = {
+    type: 'controller-sync' as const,
+    payload: {
+      type: 'controller-sync' as const,
+      ts: performance.now(),
+      sessionId,
+      sequence: nextSequence(),
+      startIndex,
+      intervalMs,
+      products,
+      layoutMode,
+      instanceId,
+      productionMode: productionModeCheckbox.checked,
+    },
+  };
+
+  if (useBroadcastFallback) {
+    // BroadcastChannel fallback (same device only)
+    channel?.postMessage(syncPayload.payload);
+  } else {
+    // Pusher (cross-device)
+    void sendToPusher(syncPayload);
+  }
+}
+
+async function setupRealtimeSync() {
+  if (useBroadcastFallback || !PUSHER_KEY) {
+    console.log('Pusher not configured - controller sync disabled');
+    return;
+  }
+
+  try {
+    const { default: Pusher } = await import('pusher-js');
+    const pusher = new Pusher(PUSHER_KEY, {
+      cluster: import.meta.env.VITE_PUSHER_CLUSTER as string,
+      forceTLS: true,
+    });
+
+    const channelName = `rotation-${instanceId}`;
+    const subscription = pusher.subscribe(channelName);
+
+    subscription.bind('rotation-event', (data: { type: string; payload: RotationMessage }) => {
+      // Only process controller-sync events, ignore screen events (init/stop)
+      if (data.type !== 'controller-sync') return;
+
+      const message = data.payload;
+
+      // Ignore our own messages
+      if (message.sessionId === sessionId) return;
+
+      // Ignore old messages
+      if (typeof message.sequence === 'number' && message.sequence <= lastSyncSequence) {
+        return;
+      }
+
+      lastSyncSequence = message.sequence ?? lastSyncSequence;
+
+      console.log(`🔄 Syncing from another controller (session: ${message.sessionId.slice(0, 8)}...)`);
+
+      // Update UI with synced values
+      if (message.intervalMs) {
+        intervalInput.value = Math.floor(message.intervalMs / 1000).toString();
+      }
+
+      if (message.products) {
+        productsTextarea.value = message.products.join('\n\n');
+        productCountLabel.textContent = message.products.length.toString();
+      }
+
+      if (message.layoutMode) {
+        layoutMode = message.layoutMode;
+        layoutInputs.forEach((input) => {
+          input.checked = input.value === layoutMode;
+        });
+      }
+
+      if (message.productionMode !== undefined) {
+        productionModeCheckbox.checked = message.productionMode;
+      }
+
+      // Optionally update isRunning state
+      // (we don't update START/STOP buttons to avoid confusion)
+    });
+
+    console.log('✅ Controller sync enabled via Pusher');
+  } catch (error) {
+    console.error('Failed to setup controller sync:', error);
+  }
+}
+
+// Initialize controller sync
+void setupRealtimeSync();
+
 // extend types
 interface RotationMessage {
   type: 'init' | 'tick' | 'stop';
@@ -479,6 +606,7 @@ interface RotationMessage {
   products: string[];
   layoutMode: LayoutMode;
   instanceId: string;
+  productionMode?: boolean;
 }
 
 interface OutgoingMessage {

@@ -19,6 +19,7 @@ export interface ControllerState {
   products: string;
   layoutMode: 'card' | 'image';
   isRunning: boolean;
+  productionMode?: boolean;
 }
 
 // ==================== INITIALIZATION ====================

@@ -221,28 +221,29 @@ function startAutonomousTimer() {
 }
 
 function handleMessage(message: RotationMessage) {
-  if (!message.sessionId) {
-    console.warn('Received message without sessionId', message);
+  // Validate sequence to prevent duplicate/old messages
+  if (typeof message.sequence === 'number' && message.sequence <= lastSequence) {
+    console.debug(`Ignoring old/duplicate message: sequence ${message.sequence} <= ${lastSequence}`);
     return;
   }
 
-  if (activeSessionId && message.sessionId !== activeSessionId) {
-    return;
-  }
-
-  if (!activeSessionId) {
+  // Update last sequence and session tracking
+  lastSequence = message.sequence ?? lastSequence;
+  
+  // Track active session for debugging (but don't block other controllers)
+  if (message.sessionId && message.sessionId !== activeSessionId) {
+    console.log(`Controller switched: ${activeSessionId || 'none'} → ${message.sessionId}`);
     activeSessionId = message.sessionId;
   }
-
-  if (typeof message.sequence === 'number' && message.sequence <= lastSequence) {
-    return;
-  }
-
-  lastSequence = message.sequence ?? lastSequence;
 
   products = message.products ?? [];
   layoutMode = message.layoutMode ?? 'card';
   intervalMs = message.intervalMs ?? 10000;
+
+  // Update production mode (hide/show UI counters)
+  if (message.productionMode !== undefined) {
+    document.body.classList.toggle('production-mode', message.productionMode);
+  }
 
   switch (message.type) {
     case 'init':
@@ -306,6 +307,7 @@ interface RotationMessage {
   layoutMode?: LayoutMode;
   serverTime?: number;
   instanceId?: string;
+  productionMode?: boolean;
 }
 
 type LayoutMode = 'card' | 'image';
