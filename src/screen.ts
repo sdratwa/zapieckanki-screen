@@ -142,7 +142,13 @@ function syncToGlobalIndex() {
 
   if (newStartIndex !== startIndex) {
     pendingStartIndex = newStartIndex;
-    renderSlides(startIndex);
+    
+    // Only update nextEl with the upcoming product (prevents double rendering)
+    const nextContent = products[productIndex(1, pendingStartIndex)] ?? '';
+    if (nextEl.innerHTML !== nextContent) {
+      nextEl.innerHTML = nextContent;
+    }
+    
     requestAnimationFrame(() => {
       if (!isAnimating) {
         animateLeft();
