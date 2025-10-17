@@ -403,12 +403,18 @@ intervalInput.addEventListener('change', () => {
   }
 });
 
-productsTextarea.addEventListener('change', () => {
+// Use 'blur' instead of 'change' for textarea - fires when user leaves the field
+productsTextarea.addEventListener('blur', () => {
   saveState();
   syncToControllers(); // Sync to other controllers
   if (isRunning) {
     broadcast('init');
   }
+});
+
+// Also update product count on input for immediate feedback
+productsTextarea.addEventListener('input', () => {
+  productCountLabel.textContent = readProducts().length.toString();
 });
 
 layoutInputs.forEach((input) => {
