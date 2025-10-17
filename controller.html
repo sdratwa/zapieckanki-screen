@@ -9,12 +9,47 @@
   <body>
     <main class="wrapper">
       <header class="header">
-        <h1>Kontroler rotacji produktów</h1>
+        <h1>Kontroler ekranów - Ad Groups</h1>
         <p class="subtitle">
           Instancja: <strong id="instanceName"></strong> &nbsp;|&nbsp;
           <a href="/" style="font-size: 0.9em">← Powrót do listy instancji</a>
         </p>
-        <div style="display: flex; gap: 8px; align-items: center; justify-content: center; margin: 16px 0;">
+      </header>
+
+      <!-- ========== GRUPY REKLAM ========== -->
+      <section class="panel">
+        <h2 class="panel-title">📦 Grupy reklam</h2>
+        <div id="groupsList" class="groups-list">
+          <!-- Dynamically populated by controller.ts -->
+        </div>
+        <button type="button" id="addGroupBtn" class="btn btn-secondary">+ Nowa grupa</button>
+      </section>
+
+      <!-- ========== PRZYPISANIE EKRANÓW ========== -->
+      <section class="panel">
+        <h2 class="panel-title">🖥️ Przypisanie ekranów do grup</h2>
+        <div id="screenAssignmentsList" class="screen-assignments-list">
+          <!-- Dynamically populated -->
+        </div>
+        <button type="button" id="addScreenBtn" class="btn btn-secondary">+ Dodaj ekran</button>
+      </section>
+
+      <!-- ========== KONTROLA ========== -->
+      <section class="panel">
+        <h2 class="panel-title">🎬 Kontrola</h2>
+        <div class="buttons">
+          <button id="startAllBtn" type="button" class="btn btn-primary">▶️ START wszystkie grupy</button>
+          <button id="stopAllBtn" type="button" class="btn btn-danger">⏹️ STOP wszystkie grupy</button>
+        </div>
+        <div class="hint" style="margin-top: 12px;">
+          START/STOP dla poszczególnych grup znajdują się przy każdej grupie powyżej.
+        </div>
+      </section>
+
+      <!-- ========== LAUNCHER EKRANÓW ========== -->
+      <section class="panel">
+        <h2 class="panel-title">🚀 Launcher ekranów</h2>
+        <div style="display: flex; gap: 8px; align-items: center;">
           <button type="button" style="padding: 6px 10px; min-width: 32px;" onclick="adjustScreenPos(-1)">−</button>
           <input type="number" id="screenPos" value="0" min="0" max="99" 
                  style="width: 60px; text-align: center; padding: 6px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 6px; color: #e2e8f0; font-size: 14px;" />
@@ -23,77 +58,90 @@
             🖥️ Otwórz ekran
           </button>
         </div>
-        <p class="subtitle" style="font-size: 12px; color: #64748b;">
+        <p class="hint">
           Ustaw numer pozycji i kliknij "Otwórz ekran" aby uruchomić nowe okno
         </p>
-      </header>
-
-      <section class="panel">
-        <div class="field">
-          <label for="interval">Interwał (sekundy)</label>
-          <input id="interval" type="number" min="1" step="1" value="10" />
-        </div>
-
-        <div class="field">
-          <label for="products">Lista produktów (jeden wpis na linię)</label>
-          <textarea id="products" rows="10" spellcheck="false"></textarea>
-          <div class="hint">Możesz wklejać HTML (np. obrazki, ceny). Każdy ekran wyświetli treść jako <code>innerHTML</code>.</div>
-        </div>
-
-        <div class="buttons">
-          <button id="startBtn" type="button">Start</button>
-          <button id="stopBtn" type="button">Stop</button>
-          <button id="resetBtn" type="button">Resetuj indeks</button>
-        </div>
-
-        <fieldset class="field layout-field">
-          <legend>Tryb prezentacji</legend>
-          <div class="layout-options">
-            <label class="option">
-              <input type="radio" name="layoutMode" value="card" checked />
-              <span>Karta produktu (opis + grafika)</span>
-            </label>
-            <label class="option">
-              <input type="radio" name="layoutMode" value="image" />
-              <span>Pełnoekranowa grafika</span>
-            </label>
-          </div>
-        </fieldset>
-
-        <fieldset class="field">
-          <legend>Opcje wyświetlania</legend>
-          <label class="checkbox-label">
-            <input type="checkbox" id="productionMode" />
-            <span>Tryb produkcyjny (ukryj liczniki "Screen #n" i "Produkt X z Y")</span>
-          </label>
-        </fieldset>
-
-        <dl class="status" aria-live="polite">
-          <div>
-            <dt>Stan</dt>
-            <dd id="stateLabel">Oczekiwanie…</dd>
-          </div>
-          <div>
-            <dt>Aktywny indeks startowy</dt>
-            <dd id="indexLabel">0</dd>
-          </div>
-          <div>
-            <dt>Liczba produktów</dt>
-            <dd id="productCount">0</dd>
-          </div>
-        </dl>
       </section>
 
+      <!-- ========== INSTRUKCJA ========== -->
       <section class="tips">
         <h2>Instrukcja</h2>
         <ul>
-          <li>Uruchom tyle okien z <code>screen.html</code>, ile masz ekranów. Każdemu nadaj parametr <code>?pos=&lt;n&gt;</code>.</li>
-          <li>Wprowadź listę produktów, naciśnij <strong>Start</strong>. Wszystkie ekrany zsynchronizują się automatycznie.</li>
-          <li>Zmiana interwału lub listy produktów podczas pracy restartuje cykl bez przerywania animacji.</li>
-          <li>Przycisk <strong>Stop</strong> zatrzymuje timer, ale utrzymuje aktualną zawartość na ekranach.</li>
+          <li><strong>Grupy reklam:</strong> Każda grupa to zestaw produktów (carousel lub statyczny). Możesz mieć wiele grup z różnymi ustawieniami.</li>
+          <li><strong>Przypisanie ekranów:</strong> Każdy ekran jest przypisany do jednej grupy. Ekrany z tej samej grupy (carousel) rotują razem.</li>
+          <li><strong>Carousel:</strong> Produkty rotują co określony interwał (np. 10s). Ekrany są zsynchronizowane.</li>
+          <li><strong>Statyczny:</strong> Wyświetla jeden produkt bez rotacji (np. menu, komunikat).</li>
+          <li><strong>START/STOP:</strong> Możesz kontrolować wszystkie grupy naraz lub każdą osobno.</li>
         </ul>
       </section>
     </main>
+
+    <!-- ========== MODAL EDYCJI GRUPY ========== -->
+    <div id="groupModal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modalTitle">Edytuj grupę</h2>
+          <button type="button" class="modal-close" onclick="closeGroupModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="editGroupId" />
+
+          <div class="field">
+            <label for="groupName">Nazwa grupy</label>
+            <input type="text" id="groupName" placeholder="np. Produkty, Menu, Promocje" />
+          </div>
+
+          <fieldset class="field">
+            <legend>Typ grupy</legend>
+            <label class="option">
+              <input type="radio" name="groupType" value="carousel" checked />
+              <span>Karuzela (rotacja produktów)</span>
+            </label>
+            <label class="option">
+              <input type="radio" name="groupType" value="static" />
+              <span>Statyczny (jeden produkt)</span>
+            </label>
+          </fieldset>
+
+          <div class="field" id="intervalField">
+            <label for="groupInterval">Interwał (sekundy) - tylko dla karuzeli</label>
+            <input type="number" id="groupInterval" min="1" step="1" value="10" />
+          </div>
+
+          <fieldset class="field">
+            <legend>Tryb wyświetlania</legend>
+            <label class="option">
+              <input type="radio" name="groupLayoutMode" value="card" checked />
+              <span>Karta produktu (opis + grafika)</span>
+            </label>
+            <label class="option">
+              <input type="radio" name="groupLayoutMode" value="image" />
+              <span>Pełnoekranowa grafika</span>
+            </label>
+          </fieldset>
+
+          <div class="field">
+            <label class="checkbox-label">
+              <input type="checkbox" id="groupProductionMode" />
+              <span>Tryb produkcyjny (ukryj liczniki)</span>
+            </label>
+          </div>
+
+          <div class="field">
+            <label for="groupProducts">Produkty (jeden na linię lub jeden blok HTML)</label>
+            <textarea id="groupProducts" rows="10" spellcheck="false"></textarea>
+            <div class="hint">
+              Dla karuzeli: wklej wiele produktów (obrazki lub HTML).<br>
+              Dla statycznego: wklej jeden produkt.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeGroupModal()">Anuluj</button>
+          <button type="button" class="btn btn-primary" onclick="saveGroup()">Zapisz</button>
+        </div>
+      </div>
+    </div>
 
     <script type="module" src="/src/controller.ts"></script>
   </body>
