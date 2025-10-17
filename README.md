@@ -200,27 +200,172 @@ This approach means:
 - ✅ Works in any environment (local, staging, production)
 - ✅ Easy to deploy to different domains
 
-### Nginx Configuration
+### Production Deployment (Complete Guide)
 
-**Example: zapieckanki.skycamp.pl**
+#### Step 1: Deploy Backend on VPS
+
+1. **Clone the repository:**
+   ```bash
+   cd /var/www
+   git clone https://github.com/your-username/zapieckanki-screen.git
+   cd zapieckanki-screen
+   npm install
+   ```
+
+2. **Create `.env` file:**
+   ```bash
+   nano .env
+   ```
+   
+   Add your Pusher credentials:
+   ```ini
+   PUSHER_APP_ID=123456
+   PUSHER_KEY=your-pusher-key
+   PUSHER_SECRET=your-pusher-secret
+   PUSHER_CLUSTER=eu
+   PORT=3000
+   ```
+
+3. **Create systemd service:**
+   ```bash
+   sudo nano /etc/systemd/system/zapieckanki-relay.service
+   ```
+   
+   Paste this configuration:
+   ```ini
+   [Unit]
+   Description=Zapieckanki Pusher Relay & API Backend
+   After=network.target
+   
+   [Service]
+   Type=simple
+   User=www-data
+   WorkingDirectory=/var/www/zapieckanki-screen
+   ExecStart=/usr/bin/npm run server
+   Restart=always
+   RestartSec=10
+   Environment=NODE_ENV=production
+   
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+4. **Enable and start the service:**
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable zapieckanki-relay
+   sudo systemctl start zapieckanki-relay
+   ```
+
+5. **Check service status:**
+   ```bash
+   sudo systemctl status zapieckanki-relay
+   ```
+   
+   You should see "Active: active (running)" ✅
+
+6. **View logs (if needed):**
+   ```bash
+   sudo journalctl -u zapieckanki-relay -f
+   ```
+
+**Service Management Commands:**
+
+```bash
+# Start service
+sudo systemctl start zapieckanki-relay
+
+# Stop service
+sudo systemctl stop zapieckanki-relay
+
+# Restart service (after code updates)
+sudo systemctl restart zapieckanki-relay
+
+# Check status
+sudo systemctl status zapieckanki-relay
+
+# View logs
+sudo journalctl -u zapieckanki-relay -n 50
+```
+
+#### Step 2: Build Frontend
+
+1. **Create `.env.local` with production values:**
+   ```bash
+   echo "VITE_PUSHER_KEY=your-pusher-key" > .env.local
+   echo "VITE_PUSHER_CLUSTER=eu" >> .env.local
+   ```
+
+2. **Build the frontend:**
+   ```bash
+   npm run build
+   ```
+
+3. **Upload `dist/` to VPS:**
+   ```bash
+   rsync -avz dist/ user@your-vps:/var/www/zapieckanki-screen/dist/
+   ```
+
+#### Step 3: Configure Nginx
+
+Create Nginx configuration with **cache for static files** (images, JS, CSS):
+
+```bash
+sudo nano /etc/nginx/sites-available/zapieckanki.skycamp.pl.conf
+```
+
+**Complete Nginx configuration:**
 
 ```nginx
-# /etc/nginx/sites-available/zapieckanki
+# Redirect HTTP to HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name zapieckanki.skycamp.pl;
+    return 301 https://$host$request_uri;
+}
 
 server {
     listen 443 ssl;
+    listen [::]:443 ssl;
     http2 on;
     server_name zapieckanki.skycamp.pl;
 
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
+    ssl_certificate /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
 
     root /var/www/zapieckanki-screen/dist;
     index index.html;
 
-    # Frontend (static files)
-    location / {
-        try_files $uri $uri/ /index.html;
+    # ===== CACHE FOR IMAGES AND STATIC FILES =====
+    # This prevents image flickering on production!
+    location ~* \.(webp|jpg|jpeg|png|gif|ico|svg|js|css|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # Cache for Vite bundled assets
+    location /assets/ {
+        try_files $uri =404;
+        expires 365d;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    # No cache for HTML pages (for instant updates)
+    location = / {
+        try_files /index.html =404;
+        add_header Cache-Control "no-store";
+    }
+
+    location = /controller.html {
+        try_files /controller.html =404;
+        add_header Cache-Control "no-store";
+    }
+
+    location = /screen.html {
+        try_files /screen.html =404;
+        add_header Cache-Control "no-store";
     }
 
     # Backend API (instances and state)
@@ -241,48 +386,53 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        add_header Cache-Control "no-store";
     }
 
     # Health check
     location /health {
         proxy_pass http://localhost:3000/health;
     }
-}
 
-# Redirect HTTP to HTTPS
-server {
-    listen 80;
-    server_name zapieckanki.skycamp.pl;
-    return 301 https://$server_name$request_uri;
+    # SPA routing fallback
+    location / {
+        try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-store";
+    }
+
+    # Gzip compression
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
 }
 ```
 
-**Systemd service for relay:**
-
-```ini
-# /etc/systemd/system/zapieckanki-relay.service
-
-[Unit]
-Description=Zapieckanki Pusher Relay
-After=network.target
-
-[Service]
-Type=simple
-User=your-user
-WorkingDirectory=/var/www/zapieckanki-screen
-ExecStart=/usr/bin/node server.ts
-Restart=always
-RestartSec=10
-Environment=NODE_ENV=production
-
-[Install]
-WantedBy=multi-user.target
-```
+**Enable the site:**
 
 ```bash
-sudo systemctl enable zapieckanki-relay
-sudo systemctl start zapieckanki-relay
+# Create symlink
+sudo ln -s /etc/nginx/sites-available/zapieckanki.skycamp.pl.conf /etc/nginx/sites-enabled/
+
+# Test configuration
+sudo nginx -t
+
+# Reload Nginx
+sudo systemctl reload nginx
 ```
+
+#### Why Cache is Important
+
+**Without cache (problems):**
+- ❌ Images reload on every animation (200 OK response, 100+ KB each)
+- ❌ Flickering/blinking during transitions (Chrome re-renders)
+- ❌ High bandwidth usage (3-4 full image downloads per rotation)
+- ❌ Slow performance on mobile devices
+
+**With cache (fixed):**
+- ✅ Images load once, then from cache (304 Not Modified, 0 KB)
+- ✅ Smooth animations, no flickering
+- ✅ Minimal bandwidth (only new products downloaded)
+- ✅ Fast performance, instant transitions
 
 ## 🖥️ Hardware Recommendations
 
