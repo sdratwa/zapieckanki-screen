@@ -481,8 +481,22 @@ sudo apt install chromium-browser
 - Ensure network latency is stable (<500ms)
 - Restart screens to resync to latest `serverTime`
 
-### Flickering on production
+### Flickering/blinking images on production
 
+**Most common cause:** Missing Nginx cache configuration for images
+
+**Symptoms:**
+- Dev works smoothly, production flickers
+- Network tab shows `200 OK` for images on every animation (instead of `304 Not Modified`)
+- Same images downloaded multiple times
+
+**Solution:**
+1. Add cache configuration to Nginx (see "Production Deployment" section above)
+2. Reload Nginx: `sudo systemctl reload nginx`
+3. Hard refresh browser: Cmd+Shift+R (Mac) / Ctrl+F5 (Windows)
+4. Check Network tab: images should now show `304` status (from cache)
+
+**Other causes:**
 - Old sessions cached – hard refresh: Cmd+Shift+R (Mac) / Ctrl+F5 (Windows)
 - Check for duplicate Pusher events in Network → WS tab (should be one per action)
 
