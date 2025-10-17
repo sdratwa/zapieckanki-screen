@@ -54,14 +54,74 @@ Each **instance** is a separate set of synchronized screens (e.g., "Kielce", "Po
 - Multi-channel (each uses a unique Pusher channel: `rotation-kielce`, `rotation-poznan`)
 - **Centrally stored** in backend JSON files (accessible from any device/browser)
 
-**Backend API** (since v1.1.0):
+**Backend API**:
 - `GET /api/instances` - List all instances
 - `POST /api/instances` - Create new instance
 - `DELETE /api/instances/:id` - Delete instance
-- `GET /api/instances/:id/state` - Get controller state (products, interval, layout)
-- `PUT /api/instances/:id/state` - Save controller state
+- `GET /api/instances/:id/config` - Get instance configuration (ad groups + screen assignments)
+- `PUT /api/instances/:id/config` - Save instance configuration
+- `POST /api/instances/:id/groups` - Create new ad group
+- `PUT /api/instances/:id/groups/:groupId` - Update ad group
+- `DELETE /api/instances/:id/groups/:groupId` - Delete ad group
 
 This allows managing instances from multiple devices without localStorage limitations.
+
+### Ad Groups Architecture (v1.2.0+)
+
+**Ad Groups** are the core unit of content management. Each group represents a set of products with specific display settings.
+
+#### Group Types:
+
+**1. Carousel (Rotating Products)**
+- Multiple products rotate automatically
+- Configurable interval (e.g., 10 seconds)
+- Perfect synchronization across all assigned screens
+- Autonomous timer (controller can be closed)
+
+**2. Static (Single Product)**
+- Displays one product without rotation
+- Ideal for menus, static ads, announcements
+- No timer, no animation
+- Instant updates when group is modified
+
+#### Screen Assignments:
+
+Each screen is assigned to **one group**. Multiple screens can be assigned to the same group:
+- **Same group (carousel)**: Screens rotate in sync, displaying different products
+- **Same group (static)**: All screens show the same product
+- **Different groups**: Each screen displays content from its assigned group independently
+
+#### Example Configuration:
+
+```typescript
+{
+  adGroups: [
+    {
+      id: "products",
+      name: "Produkty",
+      type: "carousel",
+      products: ["<img src='/products/1.webp'>", ...],
+      intervalSeconds: 10,
+      layoutMode: "image",
+      productionMode: true
+    },
+    {
+      id: "menu",
+      name: "Menu",
+      type: "static",
+      products: ["<img src='/menu/main.webp'>"],
+      layoutMode: "image",
+      productionMode: false
+    }
+  ],
+  screenAssignments: {
+    "0": "products",  // Screens 0, 1, 2 → carousel
+    "1": "products",
+    "2": "products",
+    "3": "menu"       // Screen 3 → static menu
+  }
+}
+```
 
 ### Server-Time Synchronization
 
@@ -97,59 +157,132 @@ Screens operate **autonomously** with perfect sync:
 2. Enter instance ID (e.g., "kielce") and click "Utwórz"
 3. Click "📋 Kontroler" to open controller for this instance
 
-### 2. Configure Products
+By default, new instances are created with one carousel group containing all 14 product images, and 3 screens (0, 1, 2) assigned to this group.
 
-In the controller:
-- Set rotation interval (seconds)
-- Add products (HTML or image tags):
-  
-  **Card mode** (image + description):
-  ```html
-  <figure class="product-card">
-    <img src="/products/CzarPrl.webp" alt="Czar PRL" />
-    <figcaption>
-      <h2>Czar PRL</h2>
-      <p>Zapieckanka z pieczarkami, serem i szczypiorkiem.</p>
-    </figcaption>
-  </figure>
-  ```
-  
-  **Image mode** (fullscreen, no padding):
-  ```html
-  <img src="/products/CzarPrl.webp">
-  ```
+### 2. Manage Ad Groups
 
-- Choose layout mode (card or fullscreen image)
-- Click **Start**
+In the controller, you'll see the **Ad Groups** section with all your content groups.
 
-### 3. Open Screens
+#### Create New Group:
 
-On each display device (Raspberry Pi, phone, TV browser):
+1. Click "+ Nowa grupa"
+2. Fill in the form:
+   - **Nazwa**: e.g., "Menu śniadaniowe", "Promocje", "Reklamy"
+   - **Typ**: 
+     - **Karuzela** (rotating products)
+     - **Statyczny** (single product)
+   - **Interwał**: rotation speed (only for carousel)
+   - **Tryb wyświetlania**:
+     - **Karta produktu** (image + description)
+     - **Pełnoekranowa grafika** (image only)
+   - **Tryb produkcyjny**: Hide UI counters ("Screen #n", "Produkt X z Y")
+   - **Produkty**: Paste HTML content
+3. Click "Zapisz"
 
-1. Open `https://your-domain.com/screen.html?instance=kielce&pos=0`
-2. For multiple screens:
-   - Screen 1: `?instance=kielce&pos=0`
-   - Screen 2: `?instance=kielce&pos=1`
-   - Screen 3: `?instance=kielce&pos=2`
-   - etc.
+#### Product Format:
 
-Each screen will display a different product from the rotation, synchronized to the millisecond.
+**For Carousel (multiple products):**
 
-### 4. Multiple Locations
+```html
+<img src="/products/CzarPrl.webp" alt="Czar PRL" />
 
-To run screens in different cities:
+<img src="/products/Baltona.webp" alt="Baltona" />
 
-**Kielce:**
-- Instance: "kielce"
-- Products: Menu Kielce
-- Screens: `?instance=kielce&pos=0`, `?instance=kielce&pos=1`, ...
+<img src="/products/Borewicza.webp" alt="Borewicza" />
+```
+*Separate products with blank lines (double newline)*
 
-**Poznań:**
-- Instance: "poznan"
-- Products: Menu Poznań
-- Screens: `?instance=poznan&pos=0`, `?instance=poznan&pos=1`, ...
+**For Static (single product):**
 
-Each instance is completely independent. You can start/stop/modify one without affecting the other.
+```html
+<img src="/menu/breakfast.webp" alt="Menu śniadaniowe" />
+```
+
+**Card mode with description:**
+
+```html
+<figure class="product-card">
+  <img src="/products/CzarPrl.webp" alt="Czar PRL" />
+  <figcaption>
+    <h2>Czar PRL</h2>
+    <p>Zapieckanka z pieczarkami, serem i szczypiorkiem.</p>
+  </figcaption>
+</figure>
+```
+
+### 3. Assign Screens to Groups
+
+In the **Przypisanie ekranów** section:
+1. Click "+ Dodaj ekran" to add a new screen
+2. Enter screen number (0-99)
+3. Select group from dropdown for each screen
+
+**Example:**
+- Screen #0, #1, #2 → "Produkty" (carousel)
+- Screen #3 → "Menu" (static)
+
+### 4. Control Groups
+
+**Per-Group Control:**
+- Each carousel group has **▶️ START** and **⏹️ STOP** buttons
+- Static groups have no controls (always visible)
+
+**Global Control:**
+- **▶️ START wszystkie grupy** - starts all carousel groups at once
+- **⏹️ STOP wszystkie grupy** - stops all groups
+
+### 5. Open Screens
+
+Use the **Launcher ekranów** section:
+1. Set screen number (0-99)
+2. Click "🖥️ Otwórz ekran"
+
+Or open manually:
+- `https://your-domain.com/screen.html?instance=kielce&pos=0`
+- `https://your-domain.com/screen.html?instance=kielce&pos=1`
+- etc.
+
+Each screen will display content from its assigned group.
+
+### 6. Example Use Cases
+
+#### Use Case 1: Product Rotation + Static Menu
+
+**Groups:**
+- "Produkty" (carousel, 10s interval, 14 products)
+- "Menu" (static, 1 product)
+
+**Screens:**
+- Screens 0, 1, 2 → "Produkty" (rotating)
+- Screen 3 → "Menu" (static)
+
+**Result:** 3 screens rotate products in sync, 4th screen shows static menu.
+
+#### Use Case 2: Time-Based Content (Manual Switching)
+
+**Groups:**
+- "Menu śniadaniowe" (static)
+- "Menu obiadowe" (static)
+- "Menu kolacja" (static)
+
+**Screens:**
+- Screen 0 → switch group assignment manually based on time of day
+
+**Result:** Same screen, different content at different times (by manually changing screen assignment).
+
+*Note: Automatic time-based switching (harmonogram) is planned for future release.*
+
+#### Use Case 3: Multiple Locations
+
+**Kielce Instance:**
+- Groups: "Produkty Kielce", "Menu Kielce"
+- Screens 0-3 assigned to different groups
+
+**Poznań Instance:**
+- Groups: "Produkty Poznań", "Menu Poznań"
+- Screens 0-3 assigned to different groups
+
+**Result:** Two completely independent setups in different cities.
 
 ## 🔧 Configuration
 
