@@ -221,6 +221,12 @@ function startAutonomousTimer() {
 }
 
 function handleMessage(message: RotationMessage) {
+  // CRITICAL: Wait for screen initialization to complete
+  if (!currentGroup || !currentMode) {
+    console.debug('Screen not initialized yet, ignoring message');
+    return;
+  }
+
   // Validate sequence to prevent duplicate/old messages
   if (typeof message.sequence === 'number' && message.sequence <= lastSequence) {
     console.debug(`Ignoring old/duplicate message: sequence ${message.sequence} <= ${lastSequence}`);
@@ -228,7 +234,7 @@ function handleMessage(message: RotationMessage) {
   }
 
   // FILTER BY GROUP ID - only process messages for our assigned group
-  if (currentGroup && message.groupId && message.groupId !== currentGroup.id) {
+  if (message.groupId && message.groupId !== currentGroup.id) {
     console.debug(`Ignoring message for different group: ${message.groupId} (mine: ${currentGroup.id})`);
     return;
   }
