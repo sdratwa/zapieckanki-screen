@@ -17,5 +17,15 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    proxy: {
+      '/trigger': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/health': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
   },
 });

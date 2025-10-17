@@ -1,3 +1,57 @@
+// ==================== INSTANCE MANAGEMENT ====================
+
+interface Instance {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
+const STORAGE_KEY = 'zapieckanki-instances';
+
+function getInstances(): Instance[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveInstance(instance: Instance) {
+  const instances = getInstances();
+  const existing = instances.find((i) => i.id === instance.id);
+  if (!existing) {
+    instances.push(instance);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(instances));
+  }
+}
+
+function getInstanceIdFromURL(): string | null {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('instance');
+}
+
+// Read instanceId from URL
+const instanceId = getInstanceIdFromURL();
+
+if (!instanceId) {
+  // Redirect to index if no instance specified
+  window.location.href = '/';
+  throw new Error('No instance specified');
+}
+
+// Save/update instance in localStorage
+const instances = getInstances();
+if (!instances.find((i) => i.id === instanceId)) {
+  saveInstance({
+    id: instanceId,
+    name: instanceId.charAt(0).toUpperCase() + instanceId.slice(1),
+    createdAt: Date.now(),
+  });
+}
+
+// ==================== UI ELEMENTS ====================
+
 const intervalInput = document.getElementById('interval') as HTMLInputElement;
 const productsTextarea = document.getElementById('products') as HTMLTextAreaElement;
 const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
@@ -72,8 +126,40 @@ const DEFAULT_IMAGE_PRODUCTS = [
   `<img class="slide-asset" src="/products/CzarPrl.webp" alt="Czar PRL XL" />`,
 ];
 
-let timer: number | null = null;
 let startIndex = 0;
+let isRunning = false;
+
+// ==================== STATE PERSISTENCE ====================
+
+interface ControllerState {
+  intervalSeconds: number;
+  products: string;
+  layoutMode: LayoutMode;
+  isRunning: boolean;
+}
+
+function getStateKey(): string {
+  return `controller-state-${instanceId}`;
+}
+
+function saveState() {
+  const state: ControllerState = {
+    intervalSeconds: Number.parseInt(intervalInput.value, 10) || 10,
+    products: productsTextarea.value,
+    layoutMode,
+    isRunning,
+  };
+  localStorage.setItem(getStateKey(), JSON.stringify(state));
+}
+
+function loadState(): ControllerState | null {
+  try {
+    const stored = localStorage.getItem(getStateKey());
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+}
 
 async function sendToPusher(message: OutgoingMessage) {
   try {
@@ -114,11 +200,34 @@ function readProducts(): string[] {
   return blocks.length ? blocks : lines.length ? lines : [...defaults];
 }
 
+function extractImagesFromProducts(products: string[]): string[] {
+  return products.map((product) => {
+    // If it's already just an <img> tag, return as is
+    if (product.trim().match(/^<img\s/i)) {
+      return product;
+    }
+    
+    // Extract <img> from HTML (e.g., from <figure>)
+    const imgMatch = product.match(/<img[^>]*>/i);
+    if (imgMatch) {
+      return imgMatch[0];
+    }
+    
+    // If no <img> found, return original
+    return product;
+  });
+}
+
 function composePayload(
   type: 'init' | 'tick' | 'stop',
   intervalMs: number,
   products: string[],
 ) {
+  // In image mode, extract only <img> tags from HTML blocks
+  const processedProducts = layoutMode === 'image' 
+    ? extractImagesFromProducts(products) 
+    : products;
+
   return {
     type,
     ts: performance.now(),
@@ -126,8 +235,9 @@ function composePayload(
     sequence: nextSequence(),
     startIndex,
     intervalMs,
-    products,
+    products: processedProducts,
     layoutMode,
+    instanceId,
   } satisfies RotationMessage;
 }
 
@@ -158,33 +268,18 @@ function setStateLabel(text: string) {
   stateLabel.textContent = text;
 }
 
-function clearTimer() {
-  if (timer !== null) {
-    window.clearInterval(timer);
-    timer = null;
-  }
-}
-
-function scheduleTicks() {
-  clearTimer();
-  const intervalMs = getIntervalMs();
-  timer = window.setInterval(() => {
-    const productCount = readProducts().length;
-    startIndex = productCount > 0 ? (startIndex + 1) % productCount : 0;
-    broadcast('tick');
-  }, intervalMs);
-}
-
 function handleStart() {
   startIndex = 0;
+  isRunning = true;
   broadcast('init');
-  scheduleTicks();
-  setStateLabel('W trakcie rotacji');
+  saveState();
+  setStateLabel('W trakcie rotacji (ekrany działają autonomicznie)');
 }
 
 function handleStop() {
-  clearTimer();
+  isRunning = false;
   broadcast('stop');
+  saveState();
   setStateLabel('Zatrzymano');
 }
 
@@ -199,14 +294,15 @@ stopBtn.addEventListener('click', handleStop);
 resetBtn.addEventListener('click', handleReset);
 
 intervalInput.addEventListener('change', () => {
-  if (timer !== null) {
+  saveState();
+  if (isRunning) {
     broadcast('init');
-    scheduleTicks();
   }
 });
 
 productsTextarea.addEventListener('change', () => {
-  if (timer !== null) {
+  saveState();
+  if (isRunning) {
     broadcast('init');
   }
 });
@@ -220,20 +316,59 @@ layoutInputs.forEach((input) => {
       productsTextarea.value = defaults.join('\n\n');
     }
     productCountLabel.textContent = readProducts().length.toString();
-    if (timer !== null) {
+    saveState();
+    if (isRunning) {
       startIndex = 0;
       broadcast('init');
     }
   });
 });
 
-if (!productsTextarea.value.trim()) {
-  const defaults = layoutMode === 'image' ? DEFAULT_IMAGE_PRODUCTS : DEFAULT_CARD_PRODUCTS;
-  productsTextarea.value = defaults.join('\n\n');
-  productCountLabel.textContent = defaults.length.toString();
+// Load saved state or use defaults
+const savedState = loadState();
+if (savedState) {
+  intervalInput.value = savedState.intervalSeconds.toString();
+  productsTextarea.value = savedState.products;
+  layoutMode = savedState.layoutMode;
+  isRunning = savedState.isRunning;
+  
+  // Update layout radio buttons
+  layoutInputs.forEach((input) => {
+    input.checked = input.value === layoutMode;
+  });
+  
+  productCountLabel.textContent = readProducts().length.toString();
+  setStateLabel(isRunning ? 'W trakcie rotacji (ekrany działają autonomicznie)' : 'Oczekiwanie na start');
+} else {
+  if (!productsTextarea.value.trim()) {
+    const defaults = layoutMode === 'image' ? DEFAULT_IMAGE_PRODUCTS : DEFAULT_CARD_PRODUCTS;
+    productsTextarea.value = defaults.join('\n\n');
+    productCountLabel.textContent = defaults.length.toString();
+  }
+  setStateLabel('Oczekiwanie na start');
 }
 
-setStateLabel('Oczekiwanie na start');
+// Display instance info
+const instanceNameEl = document.getElementById('instanceName');
+if (instanceNameEl) {
+  const currentInstance = instances.find((i) => i.id === instanceId);
+  instanceNameEl.textContent = currentInstance?.name || instanceId;
+}
+
+// Screen launcher
+const screenPosInput = document.getElementById('screenPos') as HTMLInputElement;
+
+(window as any).adjustScreenPos = (delta: number) => {
+  if (!screenPosInput) return;
+  const currentValue = parseInt(screenPosInput.value, 10) || 0;
+  const newValue = Math.max(0, Math.min(99, currentValue + delta));
+  screenPosInput.value = newValue.toString();
+};
+
+(window as any).openScreenWindow = () => {
+  const pos = screenPosInput ? parseInt(screenPosInput.value, 10) || 0 : 0;
+  window.open(`/screen.html?instance=${instanceId}&pos=${pos}`, '_blank');
+};
 
 // extend types
 interface RotationMessage {
@@ -245,6 +380,7 @@ interface RotationMessage {
   intervalMs: number;
   products: string[];
   layoutMode: LayoutMode;
+  instanceId: string;
 }
 
 interface OutgoingMessage {

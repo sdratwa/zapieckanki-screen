@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Zapieckanki Screen</title>
+    <title>Zapieckanki Screen - Instancje</title>
     <style>
       :root {
         color-scheme: dark;
@@ -15,54 +15,345 @@
       }
       body {
         margin: 0;
+        padding: 40px 20px;
         min-height: 100vh;
-        display: grid;
-        place-items: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
       }
       main {
-        padding: 40px;
-        max-width: 640px;
-        text-align: center;
+        width: 100%;
+        max-width: 800px;
         background: rgba(15, 23, 42, 0.75);
         border-radius: 24px;
         border: 1px solid rgba(148, 163, 184, 0.18);
         backdrop-filter: blur(28px);
+        padding: 40px;
       }
       h1 {
-        margin: 0 0 16px;
-        font-size: clamp(32px, 5vw, 48px);
+        margin: 0 0 8px;
+        font-size: clamp(28px, 4vw, 40px);
       }
-      p {
-        margin: 0 0 24px;
-        line-height: 1.7;
-        color: #cbd5f5;
+      .subtitle {
+        margin: 0 0 32px;
+        color: #94a3b8;
+        font-size: 14px;
       }
-      a {
-        display: inline-block;
-        margin: 10px;
-        padding: 14px 20px;
-        border-radius: 999px;
+      .section-title {
+        margin: 32px 0 16px;
+        font-size: 20px;
         font-weight: 600;
-        text-decoration: none;
+        color: #cbd5e1;
+      }
+      .new-instance-form {
+        background: rgba(30, 41, 59, 0.5);
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 32px;
+      }
+      .form-row {
+        display: flex;
+        gap: 12px;
+        align-items: flex-end;
+      }
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #cbd5e1;
+      }
+      input[type="text"] {
+        flex: 1;
+        padding: 10px 14px;
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 8px;
+        color: #e2e8f0;
+        font-size: 14px;
+        font-family: inherit;
+      }
+      input[type="text"]:focus {
+        outline: none;
+        border-color: rgba(56, 189, 248, 0.5);
+      }
+      button {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 150ms ease;
+        font-family: inherit;
+      }
+      .btn-primary {
         background: rgba(56, 189, 248, 0.85);
         color: #020617;
-        transition: transform 150ms ease, box-shadow 150ms ease;
       }
-      a:hover {
+      .btn-primary:hover {
+        background: rgba(56, 189, 248, 1);
         transform: translateY(-1px);
-        box-shadow: 0 12px 24px rgba(56, 189, 248, 0.22);
+        box-shadow: 0 8px 16px rgba(56, 189, 248, 0.3);
+      }
+      .btn-secondary {
+        background: rgba(148, 163, 184, 0.15);
+        color: #cbd5e1;
+      }
+      .btn-secondary:hover {
+        background: rgba(148, 163, 184, 0.25);
+      }
+      .btn-danger {
+        background: rgba(239, 68, 68, 0.2);
+        color: #fca5a5;
+        padding: 6px 12px;
+        font-size: 12px;
+      }
+      .btn-danger:hover {
+        background: rgba(239, 68, 68, 0.3);
+      }
+      .instances-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .instance-item {
+        background: rgba(30, 41, 59, 0.4);
+        border: 1px solid rgba(148, 163, 184, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .instance-info h3 {
+        margin: 0 0 4px;
+        font-size: 18px;
+        color: #e2e8f0;
+      }
+      .instance-info p {
+        margin: 0;
+        font-size: 13px;
+        color: #94a3b8;
+      }
+      .instance-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #94a3b8;
+      }
+      code {
+        background: rgba(56, 189, 248, 0.12);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.9em;
+        color: #7dd3fc;
       }
     </style>
   </head>
   <body>
     <main>
-      <h1>Zapieckanki Screen</h1>
-      <p>Witaj! To mała aplikacja do synchronizowanej prezentacji produktów na wielu ekranach. Zacznij od kontrolera lub od razu otwórz widok ekranu.</p>
-      <p>
-        <a href="/controller.html">Otwórz kontroler</a>
-        <a href="/screen.html?pos=0">Podgląd ekranu #0</a>
-      </p>
-      <p style="font-size:14px;color:#94a3b8">Skopiuj kartę ekranu i zmień parametr <code>?pos=</code>, aby dodać kolejne wyświetlacze.</p>
+      <h1>🍕 Zapieckanki Screen</h1>
+      <p class="subtitle">Zarządzanie instancjami wyświetlaczy</p>
+
+      <div class="new-instance-form">
+        <h2 class="section-title" style="margin-top: 0">Utwórz nową instancję</h2>
+        <form id="newInstanceForm">
+          <div class="form-row">
+            <div style="flex: 1">
+              <label for="instanceId">ID instancji (np. "kielce", "poznan")</label>
+              <input type="text" id="instanceId" required pattern="[a-z0-9-]+" 
+                     placeholder="kielce" autocomplete="off" />
+            </div>
+            <button type="submit" class="btn-primary">Utwórz</button>
+          </div>
+          <p style="margin: 8px 0 0; font-size: 12px; color: #64748b;">
+            Tylko małe litery, cyfry i myślniki. To ID będzie używane w URL.
+          </p>
+        </form>
+      </div>
+
+      <h2 class="section-title">Istniejące instancje</h2>
+      <ul class="instances-list" id="instancesList"></ul>
+      <div class="empty-state" id="emptyState" style="display: none">
+        Brak instancji. Utwórz pierwszą powyżej! 👆
+      </div>
     </main>
+
+    <script>
+      const STORAGE_KEY = 'zapieckanki-instances';
+
+      function getInstances() {
+        try {
+          const stored = localStorage.getItem(STORAGE_KEY);
+          return stored ? JSON.parse(stored) : [];
+        } catch {
+          return [];
+        }
+      }
+
+      function saveInstance(instance) {
+        const instances = getInstances();
+        const existing = instances.find((i) => i.id === instance.id);
+        if (!existing) {
+          instances.push(instance);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(instances));
+        }
+        return instances;
+      }
+
+      async function deleteInstance(instanceId) {
+        if (!confirm(`Czy na pewno chcesz usunąć instancję "${instanceId}"?\n\nZatrzyma to wszystkie ekrany tej instancji.`)) {
+          return;
+        }
+
+        // Send STOP event to Pusher before deleting
+        try {
+          const pusherEndpoint = '/trigger'; // Relative URL - works with nginx proxy
+          await fetch(pusherEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'stop',
+              payload: {
+                type: 'stop',
+                instanceId: instanceId,
+                sessionId: 'launcher-cleanup',
+                sequence: Date.now(),
+                startIndex: 0,
+                intervalMs: 10000,
+                products: [],
+                layoutMode: 'card',
+              },
+            }),
+          });
+        } catch (error) {
+          console.error('Failed to send STOP event:', error);
+        }
+
+        // Remove from localStorage
+        const instances = getInstances().filter((i) => i.id !== instanceId);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(instances));
+        
+        // Remove controller state
+        localStorage.removeItem(`controller-state-${instanceId}`);
+        
+        renderInstances();
+      }
+
+      function renderInstances() {
+        const instances = getInstances();
+        const list = document.getElementById('instancesList');
+        const emptyState = document.getElementById('emptyState');
+
+        if (instances.length === 0) {
+          list.style.display = 'none';
+          emptyState.style.display = 'block';
+          return;
+        }
+
+        list.style.display = 'block';
+        emptyState.style.display = 'none';
+
+        list.innerHTML = instances
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .map(
+            (instance) => `
+          <li class="instance-item">
+            <div class="instance-info">
+              <h3>${instance.name}</h3>
+              <p>ID: <code>${instance.id}</code> &nbsp;|&nbsp; Utworzono: ${new Date(
+              instance.createdAt
+            ).toLocaleDateString('pl-PL')}</p>
+            </div>
+            <div class="instance-actions">
+              <button class="btn-secondary" onclick="openController('${instance.id}')">
+                📋 Kontroler
+              </button>
+              <div style="width: 20px;"></div>
+              <div style="display: flex; gap: 4px; align-items: center;">
+                <button class="btn-secondary" style="padding: 8px 12px; min-width: 36px;" 
+                        onclick="adjustScreen('${instance.id}', -1)">−</button>
+                <input type="number" id="screen-${instance.id}" value="0" min="0" max="99" 
+                       style="width: 50px; text-align: center; padding: 8px 4px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; color: #e2e8f0; font-size: 14px;" />
+                <button class="btn-secondary" style="padding: 8px 12px; min-width: 36px;" 
+                        onclick="adjustScreen('${instance.id}', 1)">+</button>
+                <button class="btn-secondary" onclick="openScreen('${instance.id}')">
+                  🖥️ Otwórz
+                </button>
+              </div>
+              <button class="btn-danger" onclick="deleteInstance('${instance.id}')">
+                🗑️
+              </button>
+            </div>
+          </li>
+        `
+          )
+          .join('');
+      }
+
+      function openController(instanceId) {
+        window.location.href = `/controller.html?instance=${instanceId}`;
+      }
+
+      function openScreen(instanceId) {
+        const input = document.getElementById(`screen-${instanceId}`);
+        const pos = input ? parseInt(input.value, 10) || 0 : 0;
+        window.open(`/screen.html?instance=${instanceId}&pos=${pos}`, '_blank');
+      }
+
+      function adjustScreen(instanceId, delta) {
+        const input = document.getElementById(`screen-${instanceId}`);
+        if (!input) return;
+        const currentValue = parseInt(input.value, 10) || 0;
+        const newValue = Math.max(0, Math.min(99, currentValue + delta));
+        input.value = newValue;
+      }
+
+      // Make functions global
+      window.openController = openController;
+      window.openScreen = openScreen;
+      window.adjustScreen = adjustScreen;
+      window.deleteInstance = deleteInstance;
+
+      // Form handler
+      document.getElementById('newInstanceForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('instanceId');
+        const instanceId = input.value.trim().toLowerCase();
+
+        if (!instanceId) return;
+
+        // Validate: only a-z, 0-9, and hyphens
+        if (!/^[a-z0-9-]+$/.test(instanceId)) {
+          alert('ID instancji może zawierać tylko małe litery (a-z), cyfry (0-9) i myślniki (-).\n\nPolskie znaki (ą, ć, ę, ł, ń, ó, ś, ź, ż) nie są dozwolone.');
+          return;
+        }
+
+        const instances = getInstances();
+        if (instances.find((i) => i.id === instanceId)) {
+          alert(`Instancja "${instanceId}" już istnieje!`);
+          return;
+        }
+
+        saveInstance({
+          id: instanceId,
+          name: instanceId.charAt(0).toUpperCase() + instanceId.slice(1),
+          createdAt: Date.now(),
+        });
+
+        input.value = '';
+        renderInstances();
+      });
+
+      // Initial render
+      renderInstances();
+    </script>
   </body>
 </html>

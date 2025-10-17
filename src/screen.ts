@@ -1,5 +1,6 @@
 const params = new URLSearchParams(window.location.search);
 const screenPos = Number.parseInt(params.get('pos') ?? '0', 10) || 0;
+const instanceId = params.get('instance') || 'default';
 
 const belt = document.getElementById('belt') as HTMLDivElement;
 const prevEl = document.getElementById('prev') as HTMLElement;
@@ -12,7 +13,9 @@ const stageEl = document.querySelector('.stage') as HTMLElement;
 const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY as string | undefined;
 const PUSHER_CLUSTER = import.meta.env.VITE_PUSHER_CLUSTER as string | undefined;
 const useBroadcastFallback = !PUSHER_KEY;
-const channelName = 'multiwall::rotation';
+const channelName = useBroadcastFallback
+  ? 'multiwall::rotation'
+  : `rotation-${instanceId}`;
 const channel = useBroadcastFallback ? new BroadcastChannel(channelName) : null;
 
 let products: string[] = [];
@@ -23,7 +26,14 @@ let layoutMode: LayoutMode = 'card';
 let lastSequence = -1;
 let activeSessionId: string | null = null;
 
+// Autonomous timer state
+let serverStartTime: number | null = null;
+let intervalMs: number = 10000;
+let autonomousTimer: number | null = null;
+let driftCorrectionTimer: number | null = null;
+
 const TRANSITION_MS = 700;
+const DRIFT_CORRECTION_INTERVAL = 10000; // Check drift every 10s
 
 function commitPendingStartIndex() {
   if (pendingStartIndex === null) return;
@@ -96,6 +106,81 @@ function animateLeft() {
   belt.addEventListener('transitionend', onDone);
 }
 
+// ==================== AUTONOMOUS TIMER ====================
+
+function calculateGlobalIndex(): number {
+  if (!serverStartTime || !intervalMs) return 0;
+  const elapsed = Date.now() - serverStartTime;
+  return Math.floor(elapsed / intervalMs);
+}
+
+function stopAutonomousTimer() {
+  if (autonomousTimer !== null) {
+    clearInterval(autonomousTimer);
+    autonomousTimer = null;
+  }
+  if (driftCorrectionTimer !== null) {
+    clearInterval(driftCorrectionTimer);
+    driftCorrectionTimer = null;
+  }
+}
+
+function syncToGlobalIndex() {
+  const globalIndex = calculateGlobalIndex();
+  const newStartIndex = normalizeIndex(globalIndex, products.length);
+
+  if (newStartIndex !== startIndex) {
+    pendingStartIndex = newStartIndex;
+    renderSlides(startIndex);
+    requestAnimationFrame(() => {
+      if (!isAnimating) {
+        animateLeft();
+      }
+    });
+  }
+}
+
+function startAutonomousTimer() {
+  stopAutonomousTimer();
+
+  if (!serverStartTime || products.length === 0) {
+    return;
+  }
+
+  // Initial sync to correct index
+  const globalIndex = calculateGlobalIndex();
+  startIndex = normalizeIndex(globalIndex, products.length);
+  renderSlides(startIndex);
+  snapToCenter();
+
+  // Schedule next tick at the exact interval boundary
+  const elapsed = Date.now() - serverStartTime;
+  const nextTickIn = intervalMs - (elapsed % intervalMs);
+
+  setTimeout(() => {
+    syncToGlobalIndex();
+
+    // Start regular interval
+    autonomousTimer = window.setInterval(() => {
+      syncToGlobalIndex();
+    }, intervalMs);
+
+    // Start drift correction timer - force re-sync every 30s
+    driftCorrectionTimer = window.setInterval(() => {
+      const expectedGlobalIndex = calculateGlobalIndex();
+      const currentDisplayedIndex = productIndex(0);
+      
+      // If we're showing wrong product, force sync
+      if (expectedGlobalIndex !== startIndex) {
+        console.log(`Drift detected - re-syncing. Expected global: ${expectedGlobalIndex}, current: ${startIndex}`);
+        startIndex = normalizeIndex(expectedGlobalIndex, products.length);
+        renderSlides(startIndex);
+        snapToCenter();
+      }
+    }, 30000); // Check every 30s
+  }, nextTickIn);
+}
+
 function handleMessage(message: RotationMessage) {
   if (!message.sessionId) {
     console.warn('Received message without sessionId', message);
@@ -117,34 +202,28 @@ function handleMessage(message: RotationMessage) {
   lastSequence = message.sequence ?? lastSequence;
 
   products = message.products ?? [];
-  const incomingStartIndex = message.startIndex ?? 0;
+  layoutMode = message.layoutMode ?? 'card';
+  intervalMs = message.intervalMs ?? 10000;
 
   switch (message.type) {
     case 'init':
-      startIndex = products.length > 0 ? normalizeIndex(incomingStartIndex, products.length) : 0;
+      // Server provides the synchronized start time
+      serverStartTime = message.serverTime ?? Date.now();
       pendingStartIndex = null;
-      layoutMode = message.layoutMode ?? 'card';
-      renderSlides();
-      snapToCenter();
-      setStatus('Zsynchronizowano');
       isAnimating = false;
+
+      // Start autonomous timer with server-time sync
+      startAutonomousTimer();
+      setStatus('Zsynchronizowano - autonomiczny timer aktywny');
       break;
-    case 'tick':
-      layoutMode = message.layoutMode ?? layoutMode;
-      renderSlides(startIndex);
-      pendingStartIndex = normalizeIndex(incomingStartIndex, products.length);
-      requestAnimationFrame(() => {
-        if (!isAnimating) {
-          animateLeft();
-        }
-      });
-      break;
+
     case 'stop':
+      stopAutonomousTimer();
       commitPendingStartIndex();
-      layoutMode = message.layoutMode ?? layoutMode;
       renderSlides(startIndex);
       setStatus('Zatrzymano');
       break;
+
     default:
       break;
   }
@@ -157,7 +236,7 @@ async function setupRealtime() {
       cluster: PUSHER_CLUSTER!,
       forceTLS: true,
     });
-    const subscription = pusher.subscribe('rotation-channel');
+    const subscription = pusher.subscribe(channelName);
     subscription.bind('rotation-event', (data: RotationEnvelope) => {
       handleMessage(data.payload);
     });
@@ -186,6 +265,8 @@ interface RotationMessage {
   intervalMs: number;
   products: string[];
   layoutMode?: LayoutMode;
+  serverTime?: number;
+  instanceId?: string;
 }
 
 type LayoutMode = 'card' | 'image';

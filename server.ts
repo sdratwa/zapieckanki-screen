@@ -32,13 +32,18 @@ app.post('/trigger', async (req, res) => {
   if (!type) {
     return res.status(400).json({ error: 'Missing message type' });
   }
+
+  const instanceId = payload?.instanceId || 'default';
+  const channelName = `rotation-${instanceId}`;
+  const serverTime = Date.now();
+
   try {
-    await pusher.trigger('rotation-channel', 'rotation-event', {
+    await pusher.trigger(channelName, 'rotation-event', {
       type,
-      payload,
-      ts: Date.now(),
+      payload: { ...payload, serverTime },
+      ts: serverTime,
     });
-    res.json({ ok: true });
+    res.json({ ok: true, serverTime });
   } catch (error) {
     console.error('Pusher trigger failed', error);
     res.status(500).json({ error: 'Failed to trigger event' });
