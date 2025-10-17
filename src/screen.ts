@@ -290,14 +290,10 @@ async function setupRealtime() {
   }
 }
 
-window.addEventListener('focus', () => setBadge());
-setBadge();
-snapToCenter();
-setStatus('Oczekiwanie na kontroler…');
-void setupRealtime();
+// ==================== TYPES ====================
 
 interface RotationMessage {
-  type: 'init' | 'tick' | 'stop';
+  type: 'init' | 'tick' | 'stop' | 'config-update';
   ts: number;
   sessionId: string;
   sequence: number;
@@ -308,11 +304,116 @@ interface RotationMessage {
   serverTime?: number;
   instanceId?: string;
   productionMode?: boolean;
+  groupId?: string; // For group-specific updates
 }
 
 type LayoutMode = 'card' | 'image';
 
 interface RotationEnvelope {
-  type: 'init' | 'tick' | 'stop';
+  type: 'init' | 'tick' | 'stop' | 'config-update';
   payload: RotationMessage;
 }
+
+interface AdGroup {
+  id: string;
+  name: string;
+  type: 'carousel' | 'static';
+  products: string[];
+  layoutMode: 'card' | 'image';
+  productionMode: boolean;
+  intervalSeconds?: number;
+}
+
+interface InstanceConfig {
+  adGroups: AdGroup[];
+  screenAssignments: Record<string, string>;
+}
+
+// ==================== INITIALIZATION ====================
+
+let currentGroup: AdGroup | null = null;
+let currentMode: 'carousel' | 'static' | null = null;
+
+async function initScreen() {
+  setBadge();
+  setStatus('Ładowanie konfiguracji...');
+  
+  try {
+    // Fetch instance configuration
+    const response = await fetch(`/api/instances/${instanceId}/config`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const config: InstanceConfig = await response.json();
+    
+    // Find which group this screen belongs to
+    const myGroupId = config.screenAssignments[screenPos.toString()];
+    if (!myGroupId) {
+      setStatus(`Ekran ${screenPos} nie przypisany do żadnej grupy`);
+      return;
+    }
+    
+    const myGroup = config.adGroups.find(g => g.id === myGroupId);
+    if (!myGroup) {
+      setStatus('Grupa nie znaleziona');
+      return;
+    }
+    
+    currentGroup = myGroup;
+    currentMode = myGroup.type;
+    
+    // Setup based on group type
+    if (myGroup.type === 'carousel') {
+      setupCarouselMode(myGroup);
+    } else if (myGroup.type === 'static') {
+      setupStaticMode(myGroup);
+    }
+    
+  } catch (error) {
+    console.error('Failed to initialize screen:', error);
+    setStatus('Błąd inicjalizacji');
+  }
+}
+
+function setupCarouselMode(group: AdGroup) {
+  console.log(`Setting up carousel mode for group: ${group.name}`);
+  
+  products = group.products;
+  layoutMode = group.layoutMode;
+  intervalMs = (group.intervalSeconds || 10) * 1000;
+  document.body.classList.toggle('production-mode', group.productionMode ?? false);
+  
+  // Render initial state (will wait for 'init' event to start timer)
+  renderSlides();
+  setStatus('Oczekiwanie na start...');
+}
+
+function setupStaticMode(group: AdGroup) {
+  console.log(`Setting up static mode for group: ${group.name}`);
+  
+  layoutMode = group.layoutMode;
+  document.body.classList.toggle('production-mode', group.productionMode ?? false);
+  
+  // Render first product (static, no rotation)
+  if (group.products.length > 0) {
+    currEl.innerHTML = group.products[0] || '';
+    setStatus(group.productionMode ? '' : 'Statyczny');
+  } else {
+    currEl.innerHTML = '<em>Brak produktu</em>';
+    setStatus('Brak produktu');
+  }
+  
+  stageEl.classList.toggle('stage--image', layoutMode === 'image');
+  
+  // Hide prev/next slides for static mode
+  prevEl.innerHTML = '';
+  nextEl.innerHTML = '';
+}
+
+// Initialize screen on load
+window.addEventListener('focus', () => setBadge());
+setBadge();
+snapToCenter();
+void initScreen();
+void setupRealtime();
