@@ -158,7 +158,7 @@ app.get('/api/instances/:id/state', async (req, res) => {
   }
 });
 
-// PUT /api/instances/:id/state - Save controller state
+// PUT /api/instances/:id/state - Save controller state (DEPRECATED - use /config instead)
 app.put('/api/instances/:id/state', async (req, res) => {
   try {
     const { intervalSeconds, products, layoutMode, isRunning } = req.body;
@@ -179,6 +179,121 @@ app.put('/api/instances/:id/state', async (req, res) => {
   } catch (error) {
     console.error('Failed to save state:', error);
     res.status(500).json({ error: 'Failed to save state' });
+  }
+});
+
+// ==================== INSTANCE CONFIGURATION API (Ad Groups) ====================
+
+// GET /api/instances/:id/config - Get full instance configuration
+app.get('/api/instances/:id/config', async (req, res) => {
+  try {
+    const config = await storage.getInstanceConfig(req.params.id);
+    res.json(config);
+  } catch (error) {
+    console.error('Failed to get config:', error);
+    res.status(500).json({ error: 'Failed to get configuration' });
+  }
+});
+
+// PUT /api/instances/:id/config - Save full instance configuration
+app.put('/api/instances/:id/config', async (req, res) => {
+  try {
+    const { adGroups, screenAssignments } = req.body;
+
+    if (!Array.isArray(adGroups) || typeof screenAssignments !== 'object') {
+      return res.status(400).json({ error: 'Invalid configuration data' });
+    }
+
+    await storage.saveInstanceConfig(req.params.id, {
+      adGroups,
+      screenAssignments,
+    });
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Failed to save config:', error);
+    res.status(500).json({ error: 'Failed to save configuration' });
+  }
+});
+
+// POST /api/instances/:id/groups - Create new ad group
+app.post('/api/instances/:id/groups', async (req, res) => {
+  try {
+    const config = await storage.getInstanceConfig(req.params.id);
+    const newGroup = req.body;
+
+    // Validate group structure
+    if (!newGroup.id || !newGroup.name || !newGroup.type || !Array.isArray(newGroup.products)) {
+      return res.status(400).json({ error: 'Invalid group data' });
+    }
+
+    // Check if group ID already exists
+    if (config.adGroups.find(g => g.id === newGroup.id)) {
+      return res.status(409).json({ error: `Group with id "${newGroup.id}" already exists` });
+    }
+
+    config.adGroups.push(newGroup);
+    await storage.saveInstanceConfig(req.params.id, config);
+
+    res.status(201).json(newGroup);
+  } catch (error) {
+    console.error('Failed to create group:', error);
+    res.status(500).json({ error: 'Failed to create group' });
+  }
+});
+
+// PUT /api/instances/:id/groups/:groupId - Update ad group
+app.put('/api/instances/:id/groups/:groupId', async (req, res) => {
+  try {
+    const config = await storage.getInstanceConfig(req.params.id);
+    const groupIndex = config.adGroups.findIndex(g => g.id === req.params.groupId);
+
+    if (groupIndex === -1) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    // Merge updates (preserve id)
+    config.adGroups[groupIndex] = {
+      ...config.adGroups[groupIndex],
+      ...req.body,
+      id: req.params.groupId, // Cannot change ID
+    };
+
+    await storage.saveInstanceConfig(req.params.id, config);
+
+    res.json(config.adGroups[groupIndex]);
+  } catch (error) {
+    console.error('Failed to update group:', error);
+    res.status(500).json({ error: 'Failed to update group' });
+  }
+});
+
+// DELETE /api/instances/:id/groups/:groupId - Delete ad group
+app.delete('/api/instances/:id/groups/:groupId', async (req, res) => {
+  try {
+    const config = await storage.getInstanceConfig(req.params.id);
+    const groupIndex = config.adGroups.findIndex(g => g.id === req.params.groupId);
+
+    if (groupIndex === -1) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    // Remove group
+    config.adGroups.splice(groupIndex, 1);
+
+    // Remove screen assignments pointing to this group
+    for (const screenId in config.screenAssignments) {
+      if (config.screenAssignments[screenId] === req.params.groupId) {
+        delete config.screenAssignments[screenId];
+      }
+    }
+
+    await storage.saveInstanceConfig(req.params.id, config);
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Failed to delete group:', error);
+    res.status(500).json({ error: 'Failed to delete group' });
   }
 });
 
