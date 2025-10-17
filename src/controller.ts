@@ -1,4 +1,19 @@
-// ==================== INSTANCE MANAGEMENT ====================
+// ==================== TYPES ====================
+
+interface AdGroup {
+  id: string;
+  name: string;
+  type: 'carousel' | 'static';
+  products: string[];
+  layoutMode: 'card' | 'image';
+  productionMode: boolean;
+  intervalSeconds?: number;
+}
+
+interface InstanceConfig {
+  adGroups: AdGroup[];
+  screenAssignments: Record<string, string>; // screenId -> groupId
+}
 
 interface Instance {
   id: string;
@@ -7,57 +22,75 @@ interface Instance {
   updatedAt?: number;
 }
 
-async function getInstance(id: string): Promise<Instance | null> {
-  try {
-    const response = await fetch(`/api/instances/${id}`);
-    if (response.status === 404) {
-      return null;
-    }
-    if (!response.ok) {
-      console.error('Failed to fetch instance:', response.statusText);
-      return null;
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to fetch instance:', error);
-    return null;
-  }
-}
+// ==================== URL & INSTANCE ====================
 
 function getInstanceIdFromURL(): string | null {
   const params = new URLSearchParams(window.location.search);
   return params.get('instance');
 }
 
-// Read instanceId from URL
 const instanceId = getInstanceIdFromURL();
 
 if (!instanceId) {
-  // Redirect to index if no instance specified
   window.location.href = '/';
   throw new Error('No instance specified');
 }
 
+async function loadInstance(): Promise<Instance | null> {
+  try {
+    const response = await fetch(`/api/instances/${instanceId}`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to load instance:', error);
+    return null;
+  }
+}
+
 // ==================== UI ELEMENTS ====================
 
-const intervalInput = document.getElementById('interval') as HTMLInputElement;
-const productsTextarea = document.getElementById('products') as HTMLTextAreaElement;
-const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
-const stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
-const resetBtn = document.getElementById('resetBtn') as HTMLButtonElement;
-const stateLabel = document.getElementById('stateLabel') as HTMLElement;
-const indexLabel = document.getElementById('indexLabel') as HTMLElement;
-const productCountLabel = document.getElementById('productCount') as HTMLElement;
-const layoutInputs = Array.from(
-  document.querySelectorAll<HTMLInputElement>('input[name="layoutMode"]'),
+const instanceNameEl = document.getElementById('instanceName') as HTMLElement;
+const groupsListEl = document.getElementById('groupsList') as HTMLElement;
+const screenAssignmentsListEl = document.getElementById('screenAssignmentsList') as HTMLElement;
+const addGroupBtn = document.getElementById('addGroupBtn') as HTMLButtonElement;
+const addScreenBtn = document.getElementById('addScreenBtn') as HTMLButtonElement;
+const startAllBtn = document.getElementById('startAllBtn') as HTMLButtonElement;
+const stopAllBtn = document.getElementById('stopAllBtn') as HTMLButtonElement;
+const screenPosInput = document.getElementById('screenPos') as HTMLInputElement;
+
+// Modal elements
+const groupModal = document.getElementById('groupModal') as HTMLElement;
+const modalTitle = document.getElementById('modalTitle') as HTMLElement;
+const editGroupIdInput = document.getElementById('editGroupId') as HTMLInputElement;
+const groupNameInput = document.getElementById('groupName') as HTMLInputElement;
+const groupTypeInputs = Array.from(
+  document.querySelectorAll<HTMLInputElement>('input[name="groupType"]')
 );
-const productionModeCheckbox = document.getElementById('productionMode') as HTMLInputElement;
+const groupIntervalInput = document.getElementById('groupInterval') as HTMLInputElement;
+const groupLayoutInputs = Array.from(
+  document.querySelectorAll<HTMLInputElement>('input[name="groupLayoutMode"]')
+);
+const groupProductionModeCheckbox = document.getElementById('groupProductionMode') as HTMLInputElement;
+const groupProductsTextarea = document.getElementById('groupProducts') as HTMLTextAreaElement;
+const intervalField = document.getElementById('intervalField') as HTMLElement;
+
+// ==================== PUSHER ====================
 
 const PUSHER_KEY = import.meta.env.VITE_PUSHER_KEY as string | undefined;
 const PUSHER_ENDPOINT = normalizePusherEndpoint(
   (import.meta.env.VITE_PUSHER_ENDPOINT as string | undefined) ?? '/trigger'
 );
 const useBroadcastFallback = !PUSHER_KEY;
+const broadcastChannel = useBroadcastFallback
+  ? new BroadcastChannel('multiwall::rotation')
+  : null;
+
+const sessionId = generateSessionId();
+let lastSequenceTime = 0;
+
+function generateSessionId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
 
 function normalizePusherEndpoint(url: string): string {
   if (url.startsWith('/')) return url;
@@ -66,281 +99,10 @@ function normalizePusherEndpoint(url: string): string {
   }
   return url;
 }
-const broadcastChannel = useBroadcastFallback
-  ? new BroadcastChannel('multiwall::rotation')
-  : null;
-
-type LayoutMode = 'card' | 'image';
-
-let layoutMode: LayoutMode =
-  layoutInputs.find((input) => input.checked)?.value === 'image' ? 'image' : 'card';
-let sessionId = generateSessionId();
-// Use timestamp as sequence to ensure globally increasing values across controller restarts
-let lastSequenceTime = 0;
-
-const DEFAULT_CARD_PRODUCTS = [
-  `<figure class="product-card">
-    <img src="/products/Aleurwal.webp" alt="Ale urwał" />
-    <figcaption>
-      <h2>Ale urwał</h2>
-      <p>Zapieckanka z charakterem – dla prawdziwych smakoszy.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Baltona.webp" alt="Baltona" />
-    <figcaption>
-      <h2>Baltona</h2>
-      <p>Inspirowana smakami Bałtyku.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Borewicza.webp" alt="Borewicza" />
-    <figcaption>
-      <h2>Borewicza</h2>
-      <p>Dla detektywów dobrego smaku.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/ChytrejBaby.webp" alt="Chytrej Baby" />
-    <figcaption>
-      <h2>Chytrej Baby</h2>
-      <p>Sprytne połączenie sprawdzonych składników.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Cinkciarza.webp" alt="Cinkciarza" />
-    <figcaption>
-      <h2>Cinkciarza</h2>
-      <p>Wyśmienita transakcja smaku.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/CzarPrl.webp" alt="Czar PRL" />
-    <figcaption>
-      <h2>Czar PRL</h2>
-      <p>Zapieckanka z pieczarkami, serem i szczypiorkiem.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Gimbusa.webp" alt="Gimbusa" />
-    <figcaption>
-      <h2>Gimbusa</h2>
-      <p>Młodzieżowa klasyka z keczupem i serem.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Kargula-i-pawlaka.webp" alt="Kargula i Pawlaka" />
-    <figcaption>
-      <h2>Kargula i Pawlaka</h2>
-      <p>Sąsiedzka klasyka – sprawdzona przepisem.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Mirka-Handalrza.webp" alt="Mirka Handlarza" />
-    <figcaption>
-      <h2>Mirka Handlarza</h2>
-      <p>Najlepsza oferta na rynku!</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Pan-tu-nie-stal.webp" alt="Pan tu nie stał" />
-    <figcaption>
-      <h2>Pan tu nie stał</h2>
-      <p>Ale teraz już stoisz – spróbuj!</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Pewex.webp" alt="Pewex" />
-    <figcaption>
-      <h2>Pewex</h2>
-      <p>Premium quality z peerelu.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Popularna.webp" alt="Popularna" />
-    <figcaption>
-      <h2>Popularna</h2>
-      <p>Najbardziej lubiana przez klientów.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Relax.webp" alt="Relax" />
-    <figcaption>
-      <h2>Relax</h2>
-      <p>Odprężająca kompozycja smaków.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Zmiennika.webp" alt="Zmiennika" />
-    <figcaption>
-      <h2>Zmiennika</h2>
-      <p>Zaskakujące połączenie sezonowych dodatków.</p>
-    </figcaption>
-  </figure>`,
-];
-
-const DEFAULT_IMAGE_PRODUCTS = [
-  `<img class="slide-asset" src="/products/Aleurwal.webp" alt="Ale urwał" />`,
-  `<img class="slide-asset" src="/products/Baltona.webp" alt="Baltona" />`,
-  `<img class="slide-asset" src="/products/Borewicza.webp" alt="Borewicza" />`,
-  `<img class="slide-asset" src="/products/ChytrejBaby.webp" alt="Chytrej Baby" />`,
-  `<img class="slide-asset" src="/products/Cinkciarza.webp" alt="Cinkciarza" />`,
-  `<img class="slide-asset" src="/products/CzarPrl.webp" alt="Czar PRL" />`,
-  `<img class="slide-asset" src="/products/Gimbusa.webp" alt="Gimbusa" />`,
-  `<img class="slide-asset" src="/products/Kargula-i-pawlaka.webp" alt="Kargula i Pawlaka" />`,
-  `<img class="slide-asset" src="/products/Mirka-Handalrza.webp" alt="Mirka Handlarza" />`,
-  `<img class="slide-asset" src="/products/Pan-tu-nie-stal.webp" alt="Pan tu nie stał" />`,
-  `<img class="slide-asset" src="/products/Pewex.webp" alt="Pewex" />`,
-  `<img class="slide-asset" src="/products/Popularna.webp" alt="Popularna" />`,
-  `<img class="slide-asset" src="/products/Relax.webp" alt="Relax" />`,
-  `<img class="slide-asset" src="/products/Zmiennika.webp" alt="Zmiennika" />`,
-];
-
-let startIndex = 0;
-let isRunning = false;
-
-// ==================== STATE PERSISTENCE ====================
-
-interface ControllerState {
-  intervalSeconds: number;
-  products: string;
-  layoutMode: LayoutMode;
-  isRunning: boolean;
-  productionMode: boolean;
-}
-
-async function saveState() {
-  const state: ControllerState = {
-    intervalSeconds: Number.parseInt(intervalInput.value, 10) || 10,
-    products: productsTextarea.value,
-    layoutMode,
-    isRunning,
-    productionMode: productionModeCheckbox.checked,
-  };
-
-  try {
-    const response = await fetch(`/api/instances/${instanceId}/state`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(state),
-    });
-
-    if (!response.ok) {
-      console.error('Failed to save state:', response.statusText);
-    }
-  } catch (error) {
-    console.error('Failed to save state:', error);
-  }
-}
-
-async function loadState(): Promise<ControllerState | null> {
-  try {
-    const response = await fetch(`/api/instances/${instanceId}/state`);
-    
-    if (response.status === 404) {
-      // State not found, return null (will use defaults)
-      return null;
-    }
-
-    if (!response.ok) {
-      console.error('Failed to load state:', response.statusText);
-      return null;
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to load state:', error);
-    return null;
-  }
-}
-
-async function sendToPusher(message: OutgoingMessage) {
-  try {
-    const response = await fetch(PUSHER_ENDPOINT!, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(message),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Relay responded with ${response.status}`);
-    }
-  } catch (error) {
-    console.error('Failed to send Pusher message', error);
-    setStateLabel('Błąd wysyłki do serwera');
-  }
-}
-
-function readProducts(): string[] {
-  const raw = productsTextarea.value;
-  const normalized = raw.replace(/\r\n/g, '\n');
-  const blocks = normalized
-    .split(/\n\s*\n/g)
-    .map((block) => block.trim())
-    .filter(Boolean);
-
-  if (blocks.length > 1) {
-    return blocks;
-  }
-
-  const lines = normalized
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const defaults = layoutMode === 'image' ? DEFAULT_IMAGE_PRODUCTS : DEFAULT_CARD_PRODUCTS;
-
-  return blocks.length ? blocks : lines.length ? lines : [...defaults];
-}
-
-function extractImagesFromProducts(products: string[]): string[] {
-  return products.map((product) => {
-    // If it's already just an <img> tag, return as is
-    if (product.trim().match(/^<img\s/i)) {
-      return product;
-    }
-    
-    // Extract <img> from HTML (e.g., from <figure>)
-    const imgMatch = product.match(/<img[^>]*>/i);
-    if (imgMatch) {
-      return imgMatch[0];
-    }
-    
-    // If no <img> found, return original
-    return product;
-  });
-}
-
-function composePayload(
-  type: 'init' | 'tick' | 'stop',
-  intervalMs: number,
-  products: string[],
-) {
-  // In image mode, extract only <img> tags from HTML blocks
-  const processedProducts = layoutMode === 'image' 
-    ? extractImagesFromProducts(products) 
-    : products;
-
-  return {
-    type,
-    ts: performance.now(),
-    sessionId,
-    sequence: nextSequence(),
-    startIndex,
-    intervalMs,
-    products: processedProducts,
-    layoutMode,
-    instanceId,
-    productionMode: productionModeCheckbox.checked,
-  } satisfies RotationMessage;
-}
 
 function nextSequence(): number {
-  // Use timestamp (ms) as sequence to ensure globally increasing values
-  // Even if controller is closed and reopened, sequence will always be higher
   const now = Date.now();
   if (now <= lastSequenceTime) {
-    // Prevent duplicate timestamps (in case of very fast consecutive calls)
     lastSequenceTime += 1;
   } else {
     lastSequenceTime = now;
@@ -348,283 +110,403 @@ function nextSequence(): number {
   return lastSequenceTime;
 }
 
-function broadcast(type: 'init' | 'tick' | 'stop') {
-  const intervalMs = getIntervalMs();
-  const products = readProducts();
-  const payload = composePayload(type, intervalMs, products);
-  if (useBroadcastFallback && broadcastChannel) {
-    broadcastChannel.postMessage(payload);
-  } else {
-    void sendToPusher({ type, payload });
-  }
-  productCountLabel.textContent = products.length.toString();
-  indexLabel.textContent = startIndex.toString();
-}
-
-function getIntervalMs(): number {
-  const seconds = Number.parseInt(intervalInput.value, 10);
-  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 10000;
-}
-
-function setStateLabel(text: string) {
-  stateLabel.textContent = text;
-}
-
-function handleStart() {
-  startIndex = 0;
-  isRunning = true;
-  broadcast('init');
-  saveState();
-  setStateLabel('W trakcie rotacji (ekrany działają autonomicznie)');
-}
-
-function handleStop() {
-  isRunning = false;
-  broadcast('stop');
-  saveState();
-  setStateLabel('Zatrzymano');
-}
-
-function handleReset() {
-  startIndex = 0;
-  broadcast('init');
-  setStateLabel('Zresetowano indeks');
-}
-
-startBtn.addEventListener('click', handleStart);
-stopBtn.addEventListener('click', handleStop);
-resetBtn.addEventListener('click', handleReset);
-
-intervalInput.addEventListener('change', () => {
-  saveState();
-  syncToControllers(); // Sync to other controllers
-  if (isRunning) {
-    broadcast('init');
-  }
-});
-
-// Use 'blur' instead of 'change' for textarea - fires when user leaves the field
-productsTextarea.addEventListener('blur', () => {
-  saveState();
-  syncToControllers(); // Sync to other controllers
-  if (isRunning) {
-    broadcast('init');
-  }
-});
-
-// Also update product count on input for immediate feedback
-productsTextarea.addEventListener('input', () => {
-  productCountLabel.textContent = readProducts().length.toString();
-});
-
-layoutInputs.forEach((input) => {
-  input.addEventListener('change', () => {
-    if (!input.checked) return;
-    layoutMode = input.value === 'image' ? 'image' : 'card';
-    const defaults = layoutMode === 'image' ? DEFAULT_IMAGE_PRODUCTS : DEFAULT_CARD_PRODUCTS;
-    if (!productsTextarea.value.trim()) {
-      productsTextarea.value = defaults.join('\n\n');
-    }
-    productCountLabel.textContent = readProducts().length.toString();
-    saveState();
-    syncToControllers(); // Sync to other controllers
-    if (isRunning) {
-      startIndex = 0;
-      broadcast('init');
-    }
-  });
-});
-
-productionModeCheckbox.addEventListener('change', () => {
-  saveState();
-  syncToControllers(); // Sync to other controllers
-  if (isRunning) {
-    broadcast('init');
-  }
-});
-
-// Load saved state or use defaults
-(async () => {
-  const savedState = await loadState();
-  if (savedState) {
-    intervalInput.value = savedState.intervalSeconds.toString();
-    productsTextarea.value = savedState.products;
-    layoutMode = savedState.layoutMode;
-    isRunning = savedState.isRunning;
-    productionModeCheckbox.checked = savedState.productionMode ?? false;
-    
-    // Update layout radio buttons
-    layoutInputs.forEach((input) => {
-      input.checked = input.value === layoutMode;
-    });
-    
-    productCountLabel.textContent = readProducts().length.toString();
-    setStateLabel(isRunning ? 'W trakcie rotacji (ekrany działają autonomicznie)' : 'Oczekiwanie na start');
-  } else {
-    if (!productsTextarea.value.trim()) {
-      const defaults = layoutMode === 'image' ? DEFAULT_IMAGE_PRODUCTS : DEFAULT_CARD_PRODUCTS;
-      productsTextarea.value = defaults.join('\n\n');
-      productCountLabel.textContent = defaults.length.toString();
-    }
-    setStateLabel('Oczekiwanie na start');
-  }
-})();
-
-// Display instance info
-(async () => {
-  const instanceNameEl = document.getElementById('instanceName');
-  if (instanceNameEl) {
-    const currentInstance = await getInstance(instanceId);
-    if (currentInstance) {
-      instanceNameEl.textContent = currentInstance.name;
-    } else {
-      instanceNameEl.textContent = instanceId;
-      console.warn(`Instance "${instanceId}" not found in backend. You may need to create it in the launcher.`);
-    }
-  }
-})();
-
-// Screen launcher
-const screenPosInput = document.getElementById('screenPos') as HTMLInputElement;
-
-(window as any).adjustScreenPos = (delta: number) => {
-  if (!screenPosInput) return;
-  const currentValue = parseInt(screenPosInput.value, 10) || 0;
-  const newValue = Math.max(0, Math.min(99, currentValue + delta));
-  screenPosInput.value = newValue.toString();
-};
-
-(window as any).openScreenWindow = () => {
-  const pos = screenPosInput ? parseInt(screenPosInput.value, 10) || 0 : 0;
-  window.open(`/screen.html?instance=${instanceId}&pos=${pos}`, '_blank');
-};
-
-// ==================== CONTROLLER SYNCHRONIZATION ====================
-
-let lastSyncSequence = -1;
-
-function syncToControllers() {
-  // Send controller-sync event to other controllers via Pusher
-  const intervalMs = getIntervalMs();
-  const products = readProducts();
-
-  const syncPayload = {
-    type: 'controller-sync' as const,
-    payload: {
-      type: 'controller-sync' as const,
-      ts: performance.now(),
-      sessionId,
-      sequence: nextSequence(),
-      startIndex,
-      intervalMs,
-      products,
-      layoutMode,
-      instanceId,
-      productionMode: productionModeCheckbox.checked,
-    },
+async function broadcast(type: 'init' | 'stop', groupId: string, group: AdGroup) {
+  const payload = {
+    type,
+    ts: performance.now(),
+    sessionId,
+    sequence: nextSequence(),
+    startIndex: 0,
+    intervalMs: (group.intervalSeconds || 10) * 1000,
+    products: group.products,
+    layoutMode: group.layoutMode,
+    productionMode: group.productionMode,
+    instanceId,
+    groupId,
   };
 
   if (useBroadcastFallback) {
-    // BroadcastChannel fallback (same device only)
-    channel?.postMessage(syncPayload.payload);
-  } else {
-    // Pusher (cross-device)
-    void sendToPusher(syncPayload);
-  }
-}
-
-async function setupRealtimeSync() {
-  if (useBroadcastFallback || !PUSHER_KEY) {
-    console.log('Pusher not configured - controller sync disabled');
+    broadcastChannel?.postMessage(payload);
     return;
   }
 
   try {
-    const { default: Pusher } = await import('pusher-js');
-    const pusher = new Pusher(PUSHER_KEY, {
-      cluster: import.meta.env.VITE_PUSHER_CLUSTER as string,
-      forceTLS: true,
+    const response = await fetch(PUSHER_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, payload }),
     });
 
-    const channelName = `rotation-${instanceId}`;
-    const subscription = pusher.subscribe(channelName);
-
-    subscription.bind('rotation-event', (data: { type: string; payload: RotationMessage }) => {
-      // Only process controller-sync events, ignore screen events (init/stop)
-      if (data.type !== 'controller-sync') return;
-
-      const message = data.payload;
-
-      // Ignore our own messages
-      if (message.sessionId === sessionId) return;
-
-      // Ignore old messages
-      if (typeof message.sequence === 'number' && message.sequence <= lastSyncSequence) {
-        return;
-      }
-
-      lastSyncSequence = message.sequence ?? lastSyncSequence;
-
-      console.log(`🔄 Syncing from another controller (session: ${message.sessionId.slice(0, 8)}...)`);
-
-      // Update UI with synced values
-      if (message.intervalMs) {
-        intervalInput.value = Math.floor(message.intervalMs / 1000).toString();
-      }
-
-      if (message.products) {
-        productsTextarea.value = message.products.join('\n\n');
-        productCountLabel.textContent = message.products.length.toString();
-      }
-
-      if (message.layoutMode) {
-        layoutMode = message.layoutMode;
-        layoutInputs.forEach((input) => {
-          input.checked = input.value === layoutMode;
-        });
-      }
-
-      if (message.productionMode !== undefined) {
-        productionModeCheckbox.checked = message.productionMode;
-      }
-
-      // Optionally update isRunning state
-      // (we don't update START/STOP buttons to avoid confusion)
-    });
-
-    console.log('✅ Controller sync enabled via Pusher');
+    if (!response.ok) {
+      console.error('Pusher trigger failed:', response.statusText);
+    }
   } catch (error) {
-    console.error('Failed to setup controller sync:', error);
+    console.error('Pusher trigger error:', error);
   }
 }
 
-// Initialize controller sync
-void setupRealtimeSync();
+// ==================== CONFIG MANAGEMENT ====================
 
-// extend types
-interface RotationMessage {
-  type: 'init' | 'tick' | 'stop';
-  ts: number;
-  sessionId: string;
-  sequence: number;
-  startIndex: number;
-  intervalMs: number;
-  products: string[];
-  layoutMode: LayoutMode;
-  instanceId: string;
-  productionMode?: boolean;
+let currentConfig: InstanceConfig = {
+  adGroups: [],
+  screenAssignments: {},
+};
+
+async function loadConfig() {
+  try {
+    const response = await fetch(`/api/instances/${instanceId}/config`);
+    if (!response.ok) {
+      console.error('Failed to load config:', response.statusText);
+      return;
+    }
+    currentConfig = await response.json();
+    renderGroups();
+    renderScreenAssignments();
+  } catch (error) {
+    console.error('Failed to load config:', error);
+  }
 }
 
-interface OutgoingMessage {
-  type: 'init' | 'tick' | 'stop';
-  payload: RotationMessage;
+async function saveConfig() {
+  try {
+    const response = await fetch(`/api/instances/${instanceId}/config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentConfig),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to save config:', response.statusText);
+      alert('Błąd zapisu konfiguracji');
+    }
+  } catch (error) {
+    console.error('Failed to save config:', error);
+    alert('Błąd zapisu konfiguracji');
+  }
 }
 
-function generateSessionId(): string {
-  return crypto.randomUUID();
+// ==================== UI RENDERING ====================
+
+function renderGroups() {
+  if (currentConfig.adGroups.length === 0) {
+    groupsListEl.innerHTML = '<p class="hint">Brak grup. Kliknij "+ Nowa grupa" aby dodać pierwszą.</p>';
+    return;
+  }
+
+  groupsListEl.innerHTML = currentConfig.adGroups
+    .map((group) => renderGroupItem(group))
+    .join('');
 }
 
-interface OutgoingMessage {
-  type: 'init' | 'tick' | 'stop';
-  payload: RotationMessage;
+function renderGroupItem(group: AdGroup): string {
+  const typeLabel = group.type === 'carousel' ? 'Karuzela' : 'Statyczny';
+  const intervalLabel = group.type === 'carousel' ? `Interwał: ${group.intervalSeconds}s` : '';
+  const layoutLabel = group.layoutMode === 'card' ? 'Karta produktu' : 'Pełny ekran';
+  const productCountLabel = `${group.products.length} produkt(ów)`;
+  
+  // Find screens assigned to this group
+  const assignedScreens = Object.entries(currentConfig.screenAssignments)
+    .filter(([_, groupId]) => groupId === group.id)
+    .map(([screenId]) => `#${screenId}`)
+    .join(', ');
+  const screensLabel = assignedScreens || 'Brak przypisanych ekranów';
+
+  return `
+    <div class="group-item" data-group-id="${group.id}">
+      <div class="group-header">
+        <div class="group-info">
+          <h3 class="group-name">${escapeHtml(group.name)}</h3>
+          <div class="group-meta">
+            <span>🔄 ${typeLabel}</span>
+            ${intervalLabel ? `<span>⏱️ ${intervalLabel}</span>` : ''}
+            <span>🎨 ${layoutLabel}</span>
+            <span>📦 ${productCountLabel}</span>
+          </div>
+        </div>
+        <div class="group-actions">
+          ${group.type === 'carousel' ? `
+            <button class="btn btn-success btn-small" onclick="startGroup('${group.id}')">▶️ START</button>
+            <button class="btn btn-danger btn-small" onclick="stopGroup('${group.id}')">⏹️ STOP</button>
+          ` : ''}
+          <button class="btn btn-secondary btn-small" onclick="editGroup('${group.id}')">⚙️ Edytuj</button>
+          <button class="btn btn-danger btn-small" onclick="deleteGroup('${group.id}')">🗑️ Usuń</button>
+        </div>
+      </div>
+      <div class="group-screens">
+        🖥️ Ekrany: ${screensLabel}
+      </div>
+    </div>
+  `;
 }
+
+function renderScreenAssignments() {
+  const screenIds = Object.keys(currentConfig.screenAssignments).map(Number).sort((a, b) => a - b);
+  
+  if (screenIds.length === 0) {
+    screenAssignmentsListEl.innerHTML = '<p class="hint">Brak ekranów. Kliknij "+ Dodaj ekran" aby dodać pierwszy.</p>';
+    return;
+  }
+
+  screenAssignmentsListEl.innerHTML = screenIds
+    .map((screenId) => {
+      const groupId = currentConfig.screenAssignments[screenId.toString()];
+      const groupOptions = currentConfig.adGroups
+        .map((group) => `<option value="${group.id}" ${group.id === groupId ? 'selected' : ''}>${escapeHtml(group.name)}</option>`)
+        .join('');
+
+      return `
+        <div class="screen-assignment">
+          <span class="screen-label">Screen #${screenId}</span>
+          <select data-screen-id="${screenId}" onchange="updateScreenAssignment(${screenId}, this.value)">
+            <option value="">-- Brak przypisania --</option>
+            ${groupOptions}
+          </select>
+          <button class="btn-small" onclick="removeScreen(${screenId})">🗑️ Usuń</button>
+        </div>
+      `;
+    })
+    .join('');
+}
+
+function escapeHtml(text: string): string {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// ==================== GROUP OPERATIONS ====================
+
+(window as any).openNewGroupModal = function() {
+  editGroupIdInput.value = '';
+  modalTitle.textContent = 'Nowa grupa';
+  groupNameInput.value = '';
+  groupTypeInputs.find((input) => input.value === 'carousel')!.checked = true;
+  groupIntervalInput.value = '10';
+  groupLayoutInputs.find((input) => input.value === 'image')!.checked = true;
+  groupProductionModeCheckbox.checked = true;
+  groupProductsTextarea.value = '';
+  intervalField.style.display = 'flex';
+  groupModal.style.display = 'flex';
+};
+
+(window as any).editGroup = function(groupId: string) {
+  const group = currentConfig.adGroups.find((g) => g.id === groupId);
+  if (!group) return;
+
+  editGroupIdInput.value = group.id;
+  modalTitle.textContent = 'Edytuj grupę';
+  groupNameInput.value = group.name;
+  groupTypeInputs.find((input) => input.value === group.type)!.checked = true;
+  groupIntervalInput.value = (group.intervalSeconds || 10).toString();
+  groupLayoutInputs.find((input) => input.value === group.layoutMode)!.checked = true;
+  groupProductionModeCheckbox.checked = group.productionMode;
+  groupProductsTextarea.value = group.products.join('\n\n');
+  intervalField.style.display = group.type === 'carousel' ? 'flex' : 'none';
+  groupModal.style.display = 'flex';
+};
+
+(window as any).closeGroupModal = function() {
+  groupModal.style.display = 'none';
+};
+
+(window as any).saveGroup = async function() {
+  const groupId = editGroupIdInput.value || `group-${Date.now()}`;
+  const name = groupNameInput.value.trim();
+  const type = groupTypeInputs.find((input) => input.checked)?.value as 'carousel' | 'static';
+  const intervalSeconds = Number.parseInt(groupIntervalInput.value, 10) || 10;
+  const layoutMode = groupLayoutInputs.find((input) => input.checked)?.value as 'card' | 'image';
+  const productionMode = groupProductionModeCheckbox.checked;
+  const productsRaw = groupProductsTextarea.value.trim();
+
+  if (!name) {
+    alert('Nazwa grupy jest wymagana');
+    return;
+  }
+
+  // Parse products (split by double newlines for HTML blocks, or by single newlines for simple tags)
+  const products = productsRaw.split(/\n\n+/).map(p => p.trim()).filter(p => p.length > 0);
+  
+  if (products.length === 0) {
+    alert('Dodaj przynajmniej jeden produkt');
+    return;
+  }
+
+  const newGroup: AdGroup = {
+    id: groupId,
+    name,
+    type,
+    products,
+    layoutMode,
+    productionMode,
+    intervalSeconds: type === 'carousel' ? intervalSeconds : undefined,
+  };
+
+  // Update or add group
+  const existingIndex = currentConfig.adGroups.findIndex((g) => g.id === groupId);
+  if (existingIndex >= 0) {
+    currentConfig.adGroups[existingIndex] = newGroup;
+  } else {
+    currentConfig.adGroups.push(newGroup);
+  }
+
+  await saveConfig();
+  await loadConfig();
+  
+  (window as any).closeGroupModal();
+};
+
+(window as any).deleteGroup = async function(groupId: string) {
+  if (!confirm('Czy na pewno usunąć tę grupę?')) return;
+
+  // Remove group
+  currentConfig.adGroups = currentConfig.adGroups.filter((g) => g.id !== groupId);
+
+  // Remove screen assignments pointing to this group
+  for (const screenId in currentConfig.screenAssignments) {
+    if (currentConfig.screenAssignments[screenId] === groupId) {
+      delete currentConfig.screenAssignments[screenId];
+    }
+  }
+
+  // Send stop event to Pusher for this group
+  const dummyGroup: AdGroup = {
+    id: groupId,
+    name: '',
+    type: 'carousel',
+    products: [],
+    layoutMode: 'image',
+    productionMode: false,
+  };
+  await broadcast('stop', groupId, dummyGroup);
+
+  await saveConfig();
+  await loadConfig();
+};
+
+(window as any).startGroup = async function(groupId: string) {
+  const group = currentConfig.adGroups.find((g) => g.id === groupId);
+  if (!group) return;
+
+  await broadcast('init', groupId, group);
+};
+
+(window as any).stopGroup = async function(groupId: string) {
+  const group = currentConfig.adGroups.find((g) => g.id === groupId);
+  if (!group) return;
+
+  await broadcast('stop', groupId, group);
+};
+
+// ==================== SCREEN ASSIGNMENT OPERATIONS ====================
+
+(window as any).updateScreenAssignment = async function(screenId: number, groupId: string) {
+  if (groupId) {
+    currentConfig.screenAssignments[screenId.toString()] = groupId;
+  } else {
+    delete currentConfig.screenAssignments[screenId.toString()];
+  }
+
+  await saveConfig();
+  renderGroups(); // Re-render to update "Ekrany" labels
+};
+
+(window as any).removeScreen = async function(screenId: number) {
+  if (!confirm(`Czy na pewno usunąć ekran #${screenId}?`)) return;
+
+  delete currentConfig.screenAssignments[screenId.toString()];
+
+  await saveConfig();
+  await loadConfig();
+};
+
+(window as any).addNewScreen = function() {
+  const newScreenId = prompt('Numer nowego ekranu (0-99):');
+  if (!newScreenId) return;
+
+  const screenNum = Number.parseInt(newScreenId, 10);
+  if (isNaN(screenNum) || screenNum < 0 || screenNum > 99) {
+    alert('Nieprawidłowy numer ekranu');
+    return;
+  }
+
+  if (currentConfig.screenAssignments[screenNum.toString()]) {
+    alert(`Ekran #${screenNum} już istnieje`);
+    return;
+  }
+
+  // Add screen with no assignment (user will select group from dropdown)
+  currentConfig.screenAssignments[screenNum.toString()] = '';
+  
+  saveConfig().then(() => loadConfig());
+};
+
+// ==================== GLOBAL OPERATIONS ====================
+
+(window as any).startAll = async function() {
+  for (const group of currentConfig.adGroups) {
+    if (group.type === 'carousel') {
+      await broadcast('init', group.id, group);
+    }
+  }
+};
+
+(window as any).stopAll = async function() {
+  for (const group of currentConfig.adGroups) {
+    await broadcast('stop', group.id, group);
+  }
+};
+
+// ==================== SCREEN LAUNCHER ====================
+
+(window as any).adjustScreenPos = function(delta: number) {
+  const currentVal = Number.parseInt(screenPosInput.value, 10) || 0;
+  const newVal = Math.max(0, Math.min(99, currentVal + delta));
+  screenPosInput.value = newVal.toString();
+};
+
+(window as any).openScreenWindow = function() {
+  const pos = screenPosInput.value;
+  const url = `/screen.html?instance=${instanceId}&pos=${pos}`;
+  window.open(url, `screen-${instanceId}-${pos}`, 'width=1920,height=1080');
+};
+
+// ==================== EVENT LISTENERS ====================
+
+addGroupBtn.addEventListener('click', () => {
+  (window as any).openNewGroupModal();
+});
+
+addScreenBtn.addEventListener('click', () => {
+  (window as any).addNewScreen();
+});
+
+startAllBtn.addEventListener('click', () => {
+  (window as any).startAll();
+});
+
+stopAllBtn.addEventListener('click', () => {
+  (window as any).stopAll();
+});
+
+// Hide/show interval field based on group type
+groupTypeInputs.forEach((input) => {
+  input.addEventListener('change', () => {
+    intervalField.style.display = input.value === 'carousel' ? 'flex' : 'none';
+  });
+});
+
+// ==================== INITIALIZATION ====================
+
+async function init() {
+  const instance = await loadInstance();
+  if (!instance) {
+    alert('Instancja nie znaleziona');
+    window.location.href = '/';
+    return;
+  }
+
+  instanceNameEl.textContent = instance.name;
+  await loadConfig();
+}
+
+void init();
