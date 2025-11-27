@@ -184,101 +184,115 @@ export async function saveControllerState(instanceId: string, state: ControllerS
 
 const DEFAULT_CAROUSEL_PRODUCTS = [
   `<figure class="product-card">
-    <img src="/products/Aleurwal.webp" alt="Ale urwał" />
-    <figcaption>
-      <h2>Ale urwał</h2>
-      <p>Zapieckanka z charakterem – dla prawdziwych smakoszy.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Baltona.webp" alt="Baltona" />
-    <figcaption>
-      <h2>Baltona</h2>
-      <p>Inspirowana smakami Bałtyku.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Borewicza.webp" alt="Borewicza" />
-    <figcaption>
-      <h2>Borewicza</h2>
-      <p>Dla detektywów dobrego smaku.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/ChytrejBaby.webp" alt="Chytrej Baby" />
-    <figcaption>
-      <h2>Chytrej Baby</h2>
-      <p>Z pomysłem na każdą okazję.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Cinkciarza.webp" alt="Cinkciarza" />
-    <figcaption>
-      <h2>Cinkciarza</h2>
-      <p>Bogata kombinacja – dla wymagających.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/CzarPrl.webp" alt="Czar PRL" />
-    <figcaption>
-      <h2>Czar PRL</h2>
-      <p>Zapieckanka z pieczarkami, serem i szczypiorkiem.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Gimbusa.webp" alt="Gimbusa" />
-    <figcaption>
-      <h2>Gimbusa</h2>
-      <p>Dla młodych duchem – świeża i energetyczna.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Kargula-i-pawlaka.webp" alt="Kargula i Pawlaka" />
-    <figcaption>
-      <h2>Kargula i Pawlaka</h2>
-      <p>Dla sąsiadów z poczuciem humoru.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Mirka-Handalrza.webp" alt="Mirka Handlarza" />
-    <figcaption>
-      <h2>Mirka Handlarza</h2>
-      <p>Dla tych, którzy wiedzą co dobre.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Pan-tu-nie-stal.webp" alt="Pan tu nie stał" />
-    <figcaption>
-      <h2>Pan tu nie stał</h2>
-      <p>Dla tych, którzy chcą być pierwsi.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Pewex.webp" alt="Pewex" />
-    <figcaption>
-      <h2>Pewex</h2>
-      <p>Luksusowa wersja z zachodnimi akcentami.</p>
-    </figcaption>
-  </figure>`,
-  `<figure class="product-card">
-    <img src="/products/Popularna.webp" alt="Popularna" />
+    <img src="/products/01Popularna.webp" alt="Popularna" />
     <figcaption>
       <h2>Popularna</h2>
       <p>Klasyka, którą wszyscy kochają.</p>
     </figcaption>
   </figure>`,
   `<figure class="product-card">
-    <img src="/products/Relax.webp" alt="Relax" />
+    <img src="/products/02CzzarPrl.webp" alt="Czar PRL" />
+    <figcaption>
+      <h2>Czar PRL</h2>
+      <p>Zapieckanka z pieczarkami, serem i szczypiorkiem.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/03Pawlaka.webp" alt="Kargula i Pawlaka" />
+    <figcaption>
+      <h2>Kargula i Pawlaka</h2>
+      <p>Dla sąsiadów z poczuciem humoru.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/04Zmiennika.webp" alt="Zmiennika" />
+    <figcaption>
+      <h2>Zmiennika</h2>
+      <p>Niespodzianka w każdym kęsie.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/05PanTu.webp" alt="Pan tu nie stał" />
+    <figcaption>
+      <h2>Pan tu nie stał</h2>
+      <p>Dla tych, którzy chcą być pierwsi.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/06Relax.webp" alt="Relax" />
     <figcaption>
       <h2>Relax</h2>
       <p>Zapieckanka do odpoczynku i relaksu.</p>
     </figcaption>
   </figure>`,
   `<figure class="product-card">
-    <img src="/products/Zmiennika.webp" alt="Zmiennika" />
+    <img src="/products/07AleUrwal.webp" alt="Ale urwał" />
     <figcaption>
-      <h2>Zmiennika</h2>
-      <p>Niespodzianka w każdym kęsie.</p>
+      <h2>Ale urwał</h2>
+      <p>Zapieckanka z charakterem – dla prawdziwych smakoszy.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/08Mirka.webp" alt="Mirka Handlarza" />
+    <figcaption>
+      <h2>Mirka Handlarza</h2>
+      <p>Dla tych, którzy wiedzą co dobre.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/09Cinkciarza.webp" alt="Cinkciarza" />
+    <figcaption>
+      <h2>Cinkciarza</h2>
+      <p>Bogata kombinacja – dla wymagających.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/10Pewex.webp" alt="Pewex" />
+    <figcaption>
+      <h2>Pewex</h2>
+      <p>Luksusowa wersja z zachodnimi akcentami.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/11Gimbusa.webp" alt="Gimbusa" />
+    <figcaption>
+      <h2>Gimbusa</h2>
+      <p>Dla młodych duchem – świeża i energetyczna.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/12Chytrej.webp" alt="Chytrej Baby" />
+    <figcaption>
+      <h2>Chytrej Baby</h2>
+      <p>Z pomysłem na każdą okazję.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/13Borewicz.webp" alt="Borewicza" />
+    <figcaption>
+      <h2>Borewicza</h2>
+      <p>Dla detektywów dobrego smaku.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/14Baltona.webp" alt="Baltona" />
+    <figcaption>
+      <h2>Baltona</h2>
+      <p>Inspirowana smakami Bałtyku.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/15Grzanki.webp" alt="Grzanki" />
+    <figcaption>
+      <h2>Grzanki</h2>
+      <p>Chrupiące grzanki z aromatycznymi dodatkami.</p>
+    </figcaption>
+  </figure>`,
+  `<figure class="product-card">
+    <img src="/products/16Frytki.webp" alt="Frytki" />
+    <figcaption>
+      <h2>Frytki</h2>
+      <p>Złociste frytki – idealne uzupełnienie.</p>
     </figcaption>
   </figure>`,
 ];
