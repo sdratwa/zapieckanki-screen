@@ -191,14 +191,14 @@ const DEFAULT_CAROUSEL_PRODUCTS = [
     </figcaption>
   </figure>`,
   `<figure class="product-card">
-    <img src="/products/02CzzarPrl.webp" alt="Czar PRL" />
+    <img src="/products/02CzarPRL.webp" alt="Czar PRL" />
     <figcaption>
       <h2>Czar PRL</h2>
       <p>Zapieckanka z pieczarkami, serem i szczypiorkiem.</p>
     </figcaption>
   </figure>`,
   `<figure class="product-card">
-    <img src="/products/03Pawlaka.webp" alt="Kargula i Pawlaka" />
+    <img src="/products/03Kargula.webp" alt="Kargula i Pawlaka" />
     <figcaption>
       <h2>Kargula i Pawlaka</h2>
       <p>Dla sąsiadów z poczuciem humoru.</p>
@@ -212,7 +212,7 @@ const DEFAULT_CAROUSEL_PRODUCTS = [
     </figcaption>
   </figure>`,
   `<figure class="product-card">
-    <img src="/products/05PanTu.webp" alt="Pan tu nie stał" />
+    <img src="/products/05PanTuNieStal.webp" alt="Pan tu nie stał" />
     <figcaption>
       <h2>Pan tu nie stał</h2>
       <p>Dla tych, którzy chcą być pierwsi.</p>
@@ -297,7 +297,7 @@ const DEFAULT_CAROUSEL_PRODUCTS = [
   </figure>`,
 ];
 
-const DEFAULT_STATIC_PRODUCT = `<img src="/products/menu-sample.png" alt="Menu" />`;
+const DEFAULT_STATIC_PRODUCT = `<img src="/products/MenuEkranPion.webp" alt="Menu" />`;
 
 function createDefaultConfig(): InstanceConfig {
   return {
